@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 歌词单行。整行高度由 PlayerLyricsAdapter.setItemHeightPx() 按字号与留白算好并写进
+     LayoutParams，这里不要再加 padding：否则行高收紧时 padding 会挤掉文字的可用高度，
+     48sp 的大字会被裁掉上下半截（实测横屏出现过）。
+     文字在整行里垂直居中，行间距完全由 itemHeightPx 决定。 -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:gravity="center_vertical"
+    android:orientation="vertical">
+
+    <TextView
+        android:id="@+id/lyric_line_text"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:textColor="@color/text_secondary"
+        android:textSize="40sp" />
+
+</LinearLayout>

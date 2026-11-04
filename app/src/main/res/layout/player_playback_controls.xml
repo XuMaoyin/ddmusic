@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 竖屏控制区：进度条一行 + 四个按钮一行。
+     横屏不用这个文件：那边进度条独立放在屏幕最底部，按钮行单独嵌在左栏。 -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/player_footer_frame"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical">
+
+    <include layout="@layout/player_progress_row" />
+
+    <include layout="@layout/player_buttons_row" />
+</LinearLayout>

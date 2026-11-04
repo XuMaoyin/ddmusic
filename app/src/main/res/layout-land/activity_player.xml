@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 横屏（车机/手机横屏）播放页：Salt Music 风格
+     上半部分：左栏（歌名歌手 + 封面 + 四个控制按钮） | 右栏（整块滚动歌词）
+     最底部：进度条横跨整个屏幕宽度
+     之所以把进度条单独放到底部而不是留在左栏：左栏只占 36% 宽，
+     窄屏（如 21:9 手机横屏）上进度条会很短且难拖动。 -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <!-- 动态背景（取封面色，降饱和） -->
+    <View
+        android:id="@+id/color_background"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical">
+
+        <!-- 主区域：左栏 + 歌词栏，占满除底部进度条外的空间 -->
+        <LinearLayout
+            android:id="@+id/landscape_panes"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:orientation="horizontal">
+
+            <!-- 左栏：歌名歌手 + 封面 + 控制按钮 -->
+            <LinearLayout
+                android:id="@+id/landscape_left_column"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="0.36"
+                android:orientation="vertical">
+
+                <!-- 歌名/歌手显示在封面上方（无顶部工具栏） -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:paddingLeft="20dp"
+                    android:paddingTop="6dp"
+                    android:paddingRight="20dp">
+
+                    <TextView
+                        android:id="@+id/player_title_text"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:ellipsize="marquee"
+                        android:singleLine="true"
+                        android:textColor="#FFFFFFFF"
+                        android:textSize="20sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/player_subtitle_text"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:ellipsize="end"
+                        android:singleLine="true"
+                        android:textColor="#FFFFFFFF"
+                        android:textSize="14sp" />
+                </LinearLayout>
+
+                <!-- 封面：正方形（宽=高），圆角 24dp 在代码中设置 -->
+                <top.juluo.ddmusic.views.HeightFitSquareLayout
+                    android:id="@+id/cover_container"
+                    android:layout_width="match_parent"
+                    android:layout_height="0dp"
+                    android:layout_gravity="top|center_horizontal"
+                    android:layout_weight="1"
+                    android:gravity="center"
+                    android:padding="20dp">
+
+                    <ImageView
+                        android:id="@+id/player_cover"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:scaleType="centerCrop" />
+                </top.juluo.ddmusic.views.HeightFitSquareLayout>
+
+                <include layout="@layout/player_buttons_row" />
+            </LinearLayout>
+
+            <!-- 歌词栏：整块内嵌滚动歌词
+                 注：设置项"横屏歌词显示在左侧"开启时，代码会把本栏移到左栏之前（交换顺序） -->
+            <FrameLayout
+                android:id="@+id/lyrics_pane"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_marginTop="32dp"
+                android:layout_marginBottom="8dp"
+                android:layout_weight="0.68">
+
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/player_lyrics_recycler"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:clipToPadding="false"
+                    android:overScrollMode="never"
+                    android:paddingLeft="16dp"
+                    android:paddingTop="40dp"
+                    android:paddingRight="24dp"
+                    android:paddingBottom="40dp"
+                    android:visibility="gone" />
+
+                <!-- 上下边界淡入淡出：渐变遮罩由代码按当前背景色实时刷新 -->
+                <View
+                    android:id="@+id/lyrics_fade_top"
+                    android:layout_width="match_parent"
+                    android:layout_height="90dp"
+                    android:layout_gravity="top"
+                    android:clickable="false"
+                    android:focusable="false"
+                    android:importantForAccessibility="no" />
+
+                <View
+                    android:id="@+id/lyrics_fade_bottom"
+                    android:layout_width="match_parent"
+                    android:layout_height="90dp"
+                    android:layout_gravity="bottom"
+                    android:clickable="false"
+                    android:focusable="false"
+                    android:importantForAccessibility="no" />
+
+                <!-- 无歌词时占位：居中显示"暂无歌词" -->
+                <TextView
+                    android:id="@+id/player_lyrics_empty"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:gravity="center"
+                    android:text="暂无歌词"
+                    android:textColor="#99FFFFFF"
+                    android:textSize="18sp"
+                    android:visibility="visible" />
+            </FrameLayout>
+        </LinearLayout>
+
+        <!-- 底部：进度条横跨整个屏幕 -->
+        <include layout="@layout/player_progress_row" />
+    </LinearLayout>
+</FrameLayout>

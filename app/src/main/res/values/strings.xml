@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">点点音悦</string>
+    <string name="all_songs">全部歌曲</string>
+    <string name="albums">专辑</string>
+    <string name="artists">歌手</string>
+    <string name="search">搜索</string>
+    <string name="no_music_found">本地没有音乐，请先放入歌曲</string>
+    <string name="search_no_result">没有找到相关歌曲</string>
+    <string name="now_playing">正在播放</string>
+
+    <string name="settings_title">设置</string>
+    <string name="settings_entry">设置</string>
+
+    <string name="settings_section_playback">播放行为</string>
+    <string name="settings_auto_play">启动时自动播放</string>
+    <string name="settings_auto_play_on">打开应用后自动续播，并直接进入播放页</string>
+    <string name="settings_auto_play_off">打开应用后停留在歌曲列表，不自动播放</string>
+
+    <string name="settings_section_player">播放页</string>
+    <string name="settings_lyrics_left">横屏时歌词显示在左侧</string>
+    <string name="settings_lyrics_side_left">歌词在左，封面在右</string>
+    <string name="settings_lyrics_side_right">封面在左，歌词在右</string>
+
+    <string name="settings_section_list">歌曲列表</string>
+    <string name="settings_sort_mode">默认排序方式</string>
+    <string name="settings_sort_hint">打开应用时曲库列表的排序</string>
+    <string name="settings_sort_current">当前：%1$s</string>
+    <string name="settings_sort_change">修改</string>
+    <string name="settings_sort_name">按名称</string>
+    <string name="settings_sort_date">按最近添加</string>
+    <string name="settings_sort_play_count">按播放次数</string>
+
+    <string name="settings_section_library">曲库维护</string>
+    <string name="settings_scan_songs">扫描歌曲</string>
+    <string name="settings_scan_hint">重新扫描本地音频文件并更新曲库</string>
+    <string name="settings_scan_action">扫描</string>
+    <string name="settings_scanning">扫描中…</string>
+    <string name="settings_scan_progress">正在扫描 %1$d / %2$d 个文件</string>
+    <string name="settings_scan_done">扫描完成：%1$d 个音频文件，曲库现有 %2$d 首</string>
+    <string name="settings_scan_empty">未找到任何音频文件</string>
+
+    <string name="settings_scan_dirs">曲库扫描目录</string>
+    <string name="settings_scan_dirs_desc">管理参与扫描的歌曲目录</string>
+
+    <string name="settings_about">关于</string>
+    <string name="settings_about_desc">版本信息与开发者</string>
+    <string name="about_version">版本 %1$s (%2$d)</string>
+    <string name="about_developer">开发者</string>
+    <string name="about_developer_value">点点、大肥鱼</string>
+    <string name="about_github">GitHub</string>
+    <string name="about_github_pending">项目上传后补充</string>
+    <string name="settings_scan_dirs_hint">关闭开关后，该目录（含其子目录）下的歌曲将不再出现在曲库中；已下载的歌词等文件不受影响。</string>
+    <string name="settings_no_dirs">未扫描到任何歌曲目录</string>
+    <string name="settings_dir_songs">%1$d 首</string>
+    <string name="settings_dir_excluded">已排除</string>
+
+</resources>

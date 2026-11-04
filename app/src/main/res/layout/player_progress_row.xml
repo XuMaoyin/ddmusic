@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 进度条一行：当前时间 / 细线进度条 / 总时长。
+     竖屏嵌在控制区顶部；横屏由 activity_player 放在屏幕最底部、横跨整个宽度。
+     轨道 2dp：ProgressBar 会把 progressDrawable 拉伸铺满内容区，
+     所以粗细靠上下 padding 控制（44dp - 21 - 21 = 2dp），而不是 drawable 里的 size。 -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:paddingLeft="20dp"
+    android:paddingRight="20dp">
+
+    <TextView
+        android:id="@+id/player_song_current_progress"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:fontFamily="sans-serif-medium"
+        android:gravity="start|center_vertical"
+        android:minWidth="48dp"
+        android:singleLine="true"
+        android:textColor="@color/text_secondary"
+        android:textSize="14sp" />
+
+    <SeekBar
+        android:id="@+id/player_progress_slider"
+        android:layout_width="0dp"
+        android:layout_height="44dp"
+        android:layout_marginLeft="12dp"
+        android:layout_marginRight="12dp"
+        android:layout_weight="1"
+        android:paddingLeft="0dp"
+        android:paddingTop="21dp"
+        android:paddingRight="0dp"
+        android:paddingBottom="21dp"
+        android:progressDrawable="@drawable/slider_progress"
+        android:splitTrack="false"
+        android:thumb="@null" />
+
+    <TextView
+        android:id="@+id/player_song_total_time"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:fontFamily="sans-serif-medium"
+        android:gravity="end|center_vertical"
+        android:minWidth="48dp"
+        android:singleLine="true"
+        android:textColor="@color/text_secondary"
+        android:textSize="14sp" />
+</LinearLayout>

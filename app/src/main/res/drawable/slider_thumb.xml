@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 滑块：16dp 圆点（车机手指粗，需要足够大；配合 SeekBar 的 44dp 触摸高度） -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="oval">
+    <size
+        android:width="16dp"
+        android:height="16dp" />
+    <solid android:color="#FFFFFFFF" />
+</shape>

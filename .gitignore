@@ -1,0 +1,31 @@
+# 构建产物
+build/
+app/build/
+*.apk
+*.aab
+*.ap_
+*.dex
+*.class
+
+# Gradle
+.gradle/
+gradle-app.setting
+local.properties
+
+# 签名文件（含密码，绝不入库）
+keystore.properties
+keystore/
+*.jks
+*.keystore
+
+# IDE / 系统
+.idea/
+*.iml
+.DS_Store
+captures/
+.externalNativeBuild/
+.cxx/
+
+# 日志与临时文件
+*.log
+*.hprof

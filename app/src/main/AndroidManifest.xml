@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="top.juluo.ddmusic">
+
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
+    <application
+        android:name=".App"
+        android:allowBackup="true"
+        android:icon="@drawable/ic_launcher"
+        android:label="@string/app_name"
+        android:requestLegacyExternalStorage="true"
+        android:theme="@style/AppTheme">
+
+        <activity
+            android:name=".activity.MainActivity"
+            android:configChanges="orientation|screenSize|keyboardHidden"
+            android:launchMode="singleTask"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <action android:name="android.intent.action.MUSIC_PLAYER" />
+                <category android:name="android.intent.category.LAUNCHER" />
+                <category android:name="android.intent.category.APP_MUSIC" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
+        <!-- 小迪语音指令的中转页（酷我车机协议）。
+             用独立透明 Activity 承接，而不是让 singleTask 的 MainActivity 接：
+             MainActivity 被语音拉起时会把其上的播放页清掉，表现为"从播放页跳回列表"。
+             这里处理完立即 finish，返回栈不动；冷启动时才额外打开播放页。
+             taskAffinity 必须与主界面不同：否则拉起中转页会把整个应用任务栈带到前台，
+             应用本来在后台时也会被迫弹出来。 -->
+        <activity
+            android:name=".activity.VoiceRelayActivity"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:noHistory="true"
+            android:taskAffinity="top.juluo.ddmusic.voicerelay"
+            android:theme="@style/VoiceRelayTheme">
+            <intent-filter>
+                <action android:name="cn.kuwo.kwmusicauto.action.STARTAPP" />
+                <action android:name="cn.kuwo.kwmusicauto.action.PLAY_MUSIC" />
+                <action android:name="cn.kuwo.kwmusicauto.action.SEARCH_MUSIC" />
+                <action android:name="cn.kuwo.kwmusicauto.action.PLAY_MUSIC_BY_TYPE" />
+                <action android:name="cn.kuwo.kwmusicauto.action.SEARCH_AND_PLAY_MUSIC_BY_SONGLISTID" />
+                <action android:name="cn.kuwo.kwmusicauto.action.OPEN_FAVORITE_MUSIC" />
+                <action android:name="cn.kuwo.kwmusicauto.action.vip.PLAY_ALL_MUSIC" />
+                <action android:name="cn.kuwo.kwmusicauto.action.PLAY_MUSIC_INDEX" />
+                <action android:name="cn.kuwo.kwmusicauto.action.JUMP" />
+                <action android:name="cn.kuwo.kwmusicauto.action.RANDOM_PLAY_MUSIC" />
+                <action android:name="cn.kuwo.kwmusicauto.action.PAGE_OPERATION" />
+                <action android:name="cn.kuwo.music.car.actions" />
+                <category android:name="android.intent.category.LAUNCHER" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
+        <!-- 播放页：跟随横竖屏切换布局（横屏=左右分布、竖屏=上下分布），因此不处理 orientation/screenSize，由系统重建加载对应 layout-land 布局 -->
+        <activity
+            android:name=".activity.PlayerActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:theme="@style/PlayerTheme" />
+
+        <!-- 设置页：曲库扫描目录排除等 -->
+        <activity
+            android:name=".activity.SettingsActivity"
+            android:exported="false"
+            android:label="@string/settings_title" />
+
+        <!-- 设置二级页：曲库扫描目录 / 关于 -->
+        <activity
+            android:name=".activity.ScanDirsActivity"
+            android:exported="false"
+            android:label="@string/settings_scan_dirs" />
+
+        <activity
+            android:name=".activity.AboutActivity"
+            android:exported="false"
+            android:label="@string/settings_about" />
+
+        <!-- 播放服务：前台 + 系统媒体会话（通知栏/方向盘媒体键） -->
+        <service
+            android:name=".service.MusicService"
+            android:exported="true"
+            android:stopWithTask="false" />
+
+        <!-- 车机小迪语音（酷我协议广播 + 系统媒体按键） -->
+        <receiver
+            android:name=".receiver.KuwoVoiceReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="cn.kuwo.kwmusicauto.action.SEARCH_MUSIC" />
+                <action android:name="cn.kuwo.kwmusicauto.action.PLAY_MUSIC" />
+                <action android:name="cn.kuwo.kwmusicauto.action.SEARCH_AND_PLAY_MUSIC_BY_SONGLISTID" />
+                <action android:name="cn.kuwo.kwmusicauto.action.PLAY_MUSIC_BY_TYPE" />
+                <action android:name="cn.kuwo.kwmusicauto.action.OPEN_FAVORITE_MUSIC" />
+                <action android:name="cn.kuwo.kwmusicauto.action.vip.PLAY_ALL_MUSIC" />
+                <action android:name="cn.kuwo.kwmusicauto.action.PLAY_MUSIC_INDEX" />
+                <action android:name="cn.kuwo.kwmusicauto.action.STARTAPP" />
+                <action android:name="cn.kuwo.kwmusicauto.action.RANDOM_PLAY_MUSIC" />
+                <action android:name="cn.kuwo.kwmusicauto.action.PAGE_OPERATION" />
+                <action android:name="cn.kuwo.kwmusicauto.action.JUMP" />
+                <action android:name="cn.kuwo.music.car.actions" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.MEDIA_BUTTON" />
+            </intent-filter>
+        </receiver>
+    </application>
+</manifest>
