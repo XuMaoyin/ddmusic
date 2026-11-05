@@ -97,11 +97,13 @@
                 android:layout_marginLeft="16dp"
                 android:background="#33FFFFFF" />
 
-            <!-- GitHub：项目上传后再填真实地址 -->
+            <!-- GitHub：点击用浏览器打开项目主页 -->
             <LinearLayout
+                android:id="@+id/row_github"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:minHeight="56dp"
+                android:background="?attr/selectableItemBackground"
                 android:gravity="center_vertical"
                 android:orientation="horizontal"
                 android:paddingLeft="16dp"
@@ -119,9 +121,11 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
+                    android:ellipsize="middle"
                     android:gravity="end"
-                    android:text="@string/about_github_pending"
-                    android:textColor="@color/text_secondary"
+                    android:singleLine="true"
+                    android:text="@string/about_github_url"
+                    android:textColor="@color/accent"
                     android:textSize="13sp" />
             </LinearLayout>
         </LinearLayout>

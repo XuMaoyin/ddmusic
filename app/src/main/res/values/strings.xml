@@ -49,7 +49,7 @@
     <string name="about_developer">开发者</string>
     <string name="about_developer_value">点点、大肥鱼</string>
     <string name="about_github">GitHub</string>
-    <string name="about_github_pending">项目上传后补充</string>
+    <string name="about_github_url">https://github.com/XuMaoyin/ddmusic</string>
     <string name="settings_scan_dirs_hint">关闭开关后，该目录（含其子目录）下的歌曲将不再出现在曲库中；已下载的歌词等文件不受影响。</string>
     <string name="settings_no_dirs">未扫描到任何歌曲目录</string>
     <string name="settings_dir_songs">%1$d 首</string>
