@@ -16,6 +16,10 @@ public final class UiSettings {
     private static final String KEY_LYRICS_ON_LEFT = "lyrics_on_left";
     /** 曲库列表排序方式，取值同 SongLoader.SORT_* */
     private static final String KEY_SORT_MODE = "sort_mode";
+    /** 歌词字号缩放，0.6~2.0，默认 1.0 */
+    private static final String KEY_LYRICS_FONT_SCALE = "lyrics_font_scale";
+    /** 歌词行距额外增量（dp），0~48，叠加在默认留白上 */
+    private static final String KEY_LYRICS_SPACING_EXTRA_DP = "lyrics_spacing_extra_dp";
 
     /** 默认开：保持原有"打开即播放并进入播放页"的车机行为 */
     public static boolean isAutoPlayOnLaunch(Context context) {
@@ -49,6 +53,32 @@ public final class UiSettings {
 
     public static void setSortMode(Context context, int mode) {
         prefs(context).edit().putInt(KEY_SORT_MODE, mode).apply();
+    }
+
+    public static float getLyricsFontScale(Context context) {
+        float v = prefs(context).getFloat(KEY_LYRICS_FONT_SCALE, 1f);
+        if (v < 0.6f) v = 0.6f;
+        if (v > 2f) v = 2f;
+        return v;
+    }
+
+    public static void setLyricsFontScale(Context context, float scale) {
+        if (scale < 0.6f) scale = 0.6f;
+        if (scale > 2f) scale = 2f;
+        prefs(context).edit().putFloat(KEY_LYRICS_FONT_SCALE, scale).apply();
+    }
+
+    public static int getLyricsSpacingExtraDp(Context context) {
+        int v = prefs(context).getInt(KEY_LYRICS_SPACING_EXTRA_DP, 0);
+        if (v < 0) v = 0;
+        if (v > 48) v = 48;
+        return v;
+    }
+
+    public static void setLyricsSpacingExtraDp(Context context, int dp) {
+        if (dp < 0) dp = 0;
+        if (dp > 48) dp = 48;
+        prefs(context).edit().putInt(KEY_LYRICS_SPACING_EXTRA_DP, dp).apply();
     }
 
     /** 排序方式的显示名资源 id，供主界面 Toast 与设置页共用 */

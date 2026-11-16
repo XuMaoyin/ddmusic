@@ -55,4 +55,9 @@
     <string name="settings_dir_songs">%1$d 首</string>
     <string name="settings_dir_excluded">已排除</string>
 
+    <string name="lyrics_style_entry">Aa</string>
+    <string name="lyrics_style_font">字号</string>
+    <string name="lyrics_style_spacing">行距</string>
+    <string name="lyrics_style_font_value">%1$d%%</string>
+    <string name="lyrics_style_spacing_value">+%1$ddp</string>
 </resources>

@@ -120,6 +120,21 @@ public class PlayerLyricsAdapter extends RecyclerView.Adapter<PlayerLyricsAdapte
         }
     }
 
+    /**
+     * 一次性应用配色、字号与行高，只触发一次重绘。
+     * 拖动字号/行距滑杆时高频调用，避免 setColors + setItemHeightPx 各刷新一遍。
+     */
+    public void applyStyle(int highlightColor, int normalColor, float highlightSize,
+                           float normalSize, boolean dark, int itemHeightPx) {
+        this.highlightTextColor = highlightColor;
+        this.normalTextColor = normalColor;
+        this.highlightTextSize = highlightSize;
+        this.normalTextSize = normalSize;
+        this.darkBackground = dark;
+        this.itemHeightPx = itemHeightPx;
+        notifyDataSetChanged();
+    }
+
     /** 设置最小行高（px），由播放页按横竖屏传入；超长句会在此基础上继续长高 */
     public void setItemHeightPx(int px) {
         this.itemHeightPx = px;

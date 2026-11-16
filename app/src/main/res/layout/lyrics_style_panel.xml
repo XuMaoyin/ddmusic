@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 歌词样式浮动面板：两组滑杆，无标题/无确定按钮，拖动即生效 -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="330dp"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingLeft="20dp"
+    android:paddingTop="16dp"
+    android:paddingRight="20dp"
+    android:paddingBottom="12dp"
+    android:background="@drawable/bg_panel_dark">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/lyrics_style_font"
+            android:textColor="#E6FFFFFF"
+            android:textSize="14sp" />
+
+        <TextView
+            android:id="@+id/lyrics_font_value"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="#99FFFFFF"
+            android:textSize="13sp" />
+    </LinearLayout>
+
+    <SeekBar
+        android:id="@+id/lyrics_font_seek"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:max="140"
+        android:progressTint="#FFFFFFFF"
+        android:thumbTint="#FFFFFFFF" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/lyrics_style_spacing"
+            android:textColor="#E6FFFFFF"
+            android:textSize="14sp" />
+
+        <TextView
+            android:id="@+id/lyrics_spacing_value"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="#99FFFFFF"
+            android:textSize="13sp" />
+    </LinearLayout>
+
+    <SeekBar
+        android:id="@+id/lyrics_spacing_seek"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:max="48"
+        android:progressTint="#FFFFFFFF"
+        android:thumbTint="#FFFFFFFF" />
+
+</LinearLayout>

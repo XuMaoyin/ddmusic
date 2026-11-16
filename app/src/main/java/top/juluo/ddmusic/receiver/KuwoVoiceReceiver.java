@@ -50,6 +50,22 @@ public class KuwoVoiceReceiver extends BroadcastReceiver {
     /** 系统媒体按键广播（方向盘/小迪语音"下一曲/上一曲/播放/暂停"都走这个） */
     public static final String ACTION_SYSTEM_MEDIA_BUTTON = "android.intent.action.MEDIA_BUTTON";
 
+    /**
+     * 比亚迪小迪自带的第三方音乐协议（不经过酷我）。
+     * 当车机“音乐源”里选中本应用时，小迪会把这些广播定向发给本包。
+     */
+    public static final String ACTION_BYD_SEARCH = "com.byd.action.AUTOVOICE_SEARCH";
+    public static final String ACTION_BYD_SEARCH_PLUS = "com.byd.action.AUTOVOICE_SEARCH_PLUS";
+    public static final String ACTION_BYD_PLAY_RANDOM = "com.byd.action.AUTOVOICE_PLAY_RANDOM";
+    public static final String ACTION_BYD_PLAY_FAVORITE = "com.byd.action.AUTOVOICE_PLAY_FAVORITE";
+    public static final String ACTION_BYD_PLAY_LATELY = "com.byd.action.AUTOVOICE_PLAY_LATELY";
+    public static final String ACTION_BYD_PLAY_DOWNLOAD = "com.byd.action.AUTOVOICE_PLAY_DOWNLOAD";
+    public static final String ACTION_BYD_RECOMMEND = "com.byd.action.AUTOVOICE_RECOMMEND";
+    public static final String ACTION_BYD_JUMP_TO = "com.byd.action.AUTOVOICE_JUMP_TO";
+    /** 小迪搜索广播里的歌名/歌手字段（注意是 BYD 自己的 EXTRA_ 命名） */
+    public static final String EXTRA_BYD_KEYWORDS = "EXTRA_KEYWORDS_SEARCH";
+    public static final String EXTRA_BYD_ARTIST = "EXTRA_ARTIST_SEARCH";
+
     @Override
     public void onReceive(Context context, Intent intent) {
         if (intent == null) return;
@@ -68,6 +84,45 @@ public class KuwoVoiceReceiver extends BroadcastReceiver {
         if (action == null) return;
 
         if (ACTION_STARTAPP.equals(action)) {
+            openMainActivity(context);
+            return;
+        }
+
+        // ---------------- 比亚迪小迪通用协议（音乐源=本应用时直达） ----------------
+
+        if (ACTION_BYD_SEARCH.equals(action) || ACTION_BYD_SEARCH_PLUS.equals(action)) {
+            String keyword = extras == null ? null : extras.getString(EXTRA_BYD_KEYWORDS);
+            String artist = extras == null ? null : extras.getString(EXTRA_BYD_ARTIST);
+            Log.d(TAG, "BYD 点播: keyword=" + keyword + " artist=" + artist);
+            if (keyword != null && !keyword.trim().isEmpty()) {
+                playLocalByQuery(context, artist, stripPlayPrefix(keyword));
+            } else {
+                openMainActivity(context);
+            }
+            return;
+        }
+
+        if (ACTION_BYD_PLAY_RANDOM.equals(action)) {
+            Log.d(TAG, "BYD 随机播放");
+            List<Song> all = SongLoader.getAllSongs(context);
+            if (!all.isEmpty()) {
+                MusicPlayerRemote.openQueue(all, 0, true);
+                if (MusicPlayerRemote.musicService != null) {
+                    MusicPlayerRemote.musicService.setShuffleMode(MusicService.SHUFFLE_MODE_SHUFFLE);
+                }
+            } else {
+                openMainActivity(context);
+            }
+            return;
+        }
+
+        if (ACTION_BYD_PLAY_FAVORITE.equals(action)
+                || ACTION_BYD_PLAY_LATELY.equals(action)
+                || ACTION_BYD_PLAY_DOWNLOAD.equals(action)
+                || ACTION_BYD_RECOMMEND.equals(action)
+                || ACTION_BYD_JUMP_TO.equals(action)) {
+            // 本地曲库没有收藏/最近/下载分类，先按“打开并继续播放”处理
+            Log.d(TAG, "BYD 其它播放指令，按打开播放处理: " + action);
             openMainActivity(context);
             return;
         }

@@ -141,4 +141,27 @@
         <!-- 底部：进度条横跨整个屏幕 -->
         <include layout="@layout/player_progress_row" />
     </LinearLayout>
+
+    <!-- 歌词样式入口：横屏右上角，无背景，只靠文字阴影保证可读 -->
+    <TextView
+        android:id="@+id/lyrics_style_button"
+        android:layout_width="56dp"
+        android:layout_height="56dp"
+        android:layout_gravity="top|end"
+        android:layout_marginTop="4dp"
+        android:layout_marginRight="72dp"
+        android:background="@android:color/transparent"
+        android:clickable="true"
+        android:contentDescription="@string/lyrics_style_entry"
+        android:focusable="true"
+        android:gravity="center"
+        android:shadowColor="#99000000"
+        android:shadowDx="0"
+        android:shadowDy="1"
+        android:shadowRadius="6"
+        android:text="@string/lyrics_style_entry"
+        android:textColor="#FFFFFFFF"
+        android:textSize="18sp"
+        android:textStyle="bold" />
+
 </FrameLayout>

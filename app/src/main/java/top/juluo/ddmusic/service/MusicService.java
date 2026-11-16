@@ -32,6 +32,9 @@ import top.juluo.ddmusic.R;
 import top.juluo.ddmusic.activity.MainActivity;
 import top.juluo.ddmusic.loader.SongLoader;
 import top.juluo.ddmusic.model.Song;
+import top.juluo.ddmusic.util.LogKit;
+import top.juluo.ddmusic.util.VoiceRegistrar;
+import top.juluo.ddmusic.util.VoiceStateReporter;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -55,6 +58,8 @@ public class MusicService extends Service {
 
     public static final String SAVED_POSITION = "POSITION";
     public static final String SAVED_POSITION_IN_TRACK = "POSITION_IN_TRACK";
+    public static final String SAVED_REPEAT_MODE = "REPEAT_MODE";
+    public static final String SAVED_SHUFFLE_MODE = "SHUFFLE_MODE";
 
     public static final String ACTION_TOGGLE = "top.juluo.ddmusic.action.TOGGLE";
     public static final String ACTION_NEXT = "top.juluo.ddmusic.action.NEXT";
@@ -99,6 +104,20 @@ public class MusicService extends Service {
     private MediaPlayer mediaPlayer;
     private MediaSessionCompat mediaSession;
     private MediaSessionManager mediaSessionManager;
+    private AudioManager audioManager;
+    private boolean hasAudioFocus;
+    /**
+     * 播放时必须持有音频焦点：车机语音助手（小迪）按“当前焦点应用”决定媒体键发给谁，
+     * 不申请焦点的话，即使 MediaSession 在播放，按键也会发给语音助手认为的旧应用。
+     */
+    private final AudioManager.OnAudioFocusChangeListener audioFocusListener = focusChange -> {
+        if (focusChange == AudioManager.AUDIOFOCUS_LOSS) {
+            hasAudioFocus = false;
+            pauseSong();
+        } else if (focusChange == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT) {
+            pauseSong();
+        }
+    };
     private final Random random = new Random();
 
     private final LocalBinder binder = new LocalBinder();
@@ -123,8 +142,12 @@ public class MusicService extends Service {
     public void onCreate() {
         super.onCreate();
         service = this;
+        // 再补一次小迪注册，防止 Application 启动时语音助手还没就绪
+        VoiceRegistrar.register(this);
         createNotificationChannel();
         initMediaSession();
+        // 必须早于 initMediaPlayer()：播放完成回调要靠 repeatMode 判断单曲循环
+        restorePlayModes();
         initMediaPlayer();
         restoreQueuesAndPosition();
         registerNoisyReceiver();
@@ -172,7 +195,24 @@ public class MusicService extends Service {
             mediaSession.setActive(false);
             mediaSession.release();
         }
+        abandonAudioFocus();
         super.onDestroy();
+    }
+
+    /** 播放时申请音频焦点；车机语音助手按焦点应用派发媒体键，必须持有 */
+    private void requestAudioFocus() {
+        if (hasAudioFocus) return;
+        if (audioManager == null) audioManager = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
+        if (audioManager == null) return;
+        int result = audioManager.requestAudioFocus(audioFocusListener,
+                AudioManager.STREAM_MUSIC, AudioManager.AUDIOFOCUS_GAIN);
+        hasAudioFocus = (result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED);
+    }
+
+    private void abandonAudioFocus() {
+        if (!hasAudioFocus || audioManager == null) return;
+        audioManager.abandonAudioFocus(audioFocusListener);
+        hasAudioFocus = false;
     }
 
     // ---------------- 播放控制 ----------------
@@ -318,18 +358,21 @@ public class MusicService extends Service {
 
     public void cycleRepeatMode() {
         repeatMode = (repeatMode + 1) % 3;
+        savePlayModes();
         notifyQueueChanged();
         updateMediaSessionState();
     }
 
     public void setRepeatMode(int mode) {
-        repeatMode = mode;
+        repeatMode = clampRepeat(mode);
+        savePlayModes();
         notifyQueueChanged();
         updateMediaSessionState();
     }
 
     public void setShuffleMode(int mode) {
-        shuffleMode = mode;
+        shuffleMode = (mode == SHUFFLE_MODE_SHUFFLE) ? SHUFFLE_MODE_SHUFFLE : SHUFFLE_MODE_NONE;
+        savePlayModes();
         notifyQueueChanged();
         updateMediaSessionState();
     }
@@ -417,6 +460,28 @@ public class MusicService extends Service {
         }
     }
 
+    private static int clampRepeat(int mode) {
+        return (mode < REPEAT_MODE_NONE || mode > REPEAT_MODE_THIS) ? REPEAT_MODE_NONE : mode;
+    }
+
+    /** 恢复上次的循环/随机模式；脏数据回退为顺序播放 */
+    private void restorePlayModes() {
+        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(this);
+        repeatMode = clampRepeat(prefs.getInt(SAVED_REPEAT_MODE, REPEAT_MODE_NONE));
+        shuffleMode = prefs.getInt(SAVED_SHUFFLE_MODE, SHUFFLE_MODE_NONE) == SHUFFLE_MODE_SHUFFLE
+                ? SHUFFLE_MODE_SHUFFLE : SHUFFLE_MODE_NONE;
+        LogKit.d("MODE", "restored repeat=" + repeatMode + " shuffle=" + shuffleMode);
+    }
+
+    /** 模式改动立即落盘（同步写，避免改动后马上被杀进程时丢数据） */
+    private void savePlayModes() {
+        PreferenceManager.getDefaultSharedPreferences(this).edit()
+                .putInt(SAVED_REPEAT_MODE, repeatMode)
+                .putInt(SAVED_SHUFFLE_MODE, shuffleMode)
+                .commit();
+        LogKit.d("MODE", "saved repeat=" + repeatMode + " shuffle=" + shuffleMode);
+    }
+
     private void savePosition() {
         if (playingQueue.isEmpty() || position < 0) return;
         SharedPreferences.Editor editor = PreferenceManager.getDefaultSharedPreferences(this).edit();
@@ -494,6 +559,7 @@ public class MusicService extends Service {
         if (mediaSession == null) return;
         Song song = getCurrentSong();
         if (song == null) return;
+        if (isPlaying()) requestAudioFocus();
         PlaybackStateCompat state = new PlaybackStateCompat.Builder()
                 .setActions(PlaybackStateCompat.ACTION_PLAY | PlaybackStateCompat.ACTION_PAUSE
                         | PlaybackStateCompat.ACTION_PLAY_PAUSE | PlaybackStateCompat.ACTION_SKIP_TO_NEXT
@@ -510,6 +576,8 @@ public class MusicService extends Service {
                 .putLong(MediaMetadataCompat.METADATA_KEY_DURATION, song.duration)
                 .build();
         mediaSession.setMetadata(metadata);
+        // 通知小迪“当前在播什么”，第三方播放器接入语音控制的关键一步
+        VoiceStateReporter.report(this, isPlaying(), song);
     }
 
     // ---------------- 通知 ----------------

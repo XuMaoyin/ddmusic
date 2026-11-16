@@ -8,6 +8,7 @@ import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.graphics.Outline;
 import android.graphics.PorterDuff;
+import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
 import android.net.Uri;
 import android.os.Build;
@@ -15,13 +16,19 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
+import android.os.SystemClock;
+import android.view.Gravity;
+import android.view.MotionEvent;
+import android.view.LayoutInflater;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.ViewOutlineProvider;
 import android.view.Window;
 import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.SeekBar;
 import android.widget.TextView;
+import android.widget.PopupWindow;
 import android.widget.Toast;
 
 import androidx.annotation.Nullable;
@@ -44,8 +51,10 @@ import top.juluo.ddmusic.ui.player.PlayerLyricsAdapter;
 import top.juluo.ddmusic.util.BackgroundColorUtil;
 import top.juluo.ddmusic.util.ColorUtil;
 import top.juluo.ddmusic.util.MusicUtil;
+import top.juluo.ddmusic.util.UiSettings;
 
 import java.util.List;
+import java.util.Locale;
 
 /**
  * 横屏播放页（车机主场景）：
@@ -76,6 +85,67 @@ public class PlayerActivity extends AppCompatActivity {
     private ImageButton prevButton;
     private ImageButton playPauseButton;
     private ImageButton nextButton;
+
+    // 歌词样式（字号/行距）
+    private View lyricsStyleButton;
+    private PopupWindow lyricsStylePopup;
+    private SeekBar lyricsFontSeek;
+    private SeekBar lyricsSpacingSeek;
+    private TextView lyricsFontValue;
+    private TextView lyricsSpacingValue;
+    private float lyricsFontScale = 1f;
+    private int lyricsSpacingExtraDp = 0;
+
+    // 横屏沉浸模式：5 秒无操作自动进入，点屏幕退出
+    private boolean immersiveMode;
+    private long immersiveEnteredAt;
+    /** 只有确认系统栏已完全隐藏（insets=0）后才武装，避免刚进沉浸就被误判退出 */
+    private boolean immersiveArmed;
+    /** 用户是否通过点击主动退出过沉浸；只有这种情况下才用重建方式再进 */
+    private boolean userExitedImmersive;
+    // 车机（DiLink 3.0）会把 IMMERSIVE_STICKY 的隐藏位清掉，这里不用 sticky，
+    // 改为在系统恢复栏时由 OnSystemUiVisibilityChangeListener 重新隐藏。
+    private static final int IMMERSIVE_FLAGS =
+            View.SYSTEM_UI_FLAG_FULLSCREEN
+                    | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                    | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                    | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                    | View.SYSTEM_UI_FLAG_LAYOUT_STABLE;
+    /** 播放页 5 秒无操作自动进入沉浸 */
+    private static final long AUTO_IMMERSIVE_DELAY_MS = 5000;
+    /** recreate() 后在新窗口直接进入沉浸的标记（静态，避免 Intent extra 丢失） */
+    private static boolean sEnterImmersiveOnCreate;
+
+    private final Runnable autoImmersiveRunnable = new Runnable() {
+        @Override
+        public void run() {
+            if (!isLandscapeNow() || isFinishing()) return;
+            if (!hasWindowFocus()) {
+                scheduleAutoImmersive();
+                return;
+            }
+            if (lyricsStylePopup != null && lyricsStylePopup.isShowing()) return;
+            if (immersiveMode) return;
+            if (userExitedImmersive) {
+                // 同一窗口里系统不会再把栏收回去，重建播放页让新窗口直接进沉浸
+                sEnterImmersiveOnCreate = true;
+                recreate();
+                return;
+            }
+            immersiveMode = true;
+            immersiveEnteredAt = SystemClock.uptimeMillis();
+            immersiveArmed = false;
+            applySystemBars();
+        }
+    };
+    private final Runnable recenterLyricsRunnable = new Runnable() {
+        @Override
+        public void run() {
+            if (lyricsAdapter == null) return;
+            int line = lyricsAdapter.getCurrentLine();
+            if (line >= 0) smoothScrollToLine(line);
+        }
+    };
 
     private int lastColor = 0xFF000000;
     private int lastScrolledLine = -1;
@@ -129,13 +199,15 @@ public class PlayerActivity extends AppCompatActivity {
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        top.juluo.ddmusic.util.LogKit.init(this);
         setContentView(R.layout.activity_player);
+        lyricsFontScale = UiSettings.getLyricsFontScale(this);
+        lyricsSpacingExtraDp = UiSettings.getLyricsSpacingExtraDp(this);
         applySystemBars();
         bindViews();
         applyLyricsSide();
         setupLyricsFade();
         setupControls();
+        setupLyricsStyleEntry();
         applyAdaptiveControlSizes();
         bindService(new Intent(this, MusicService.class), serviceConnection, BIND_AUTO_CREATE);
         handler.post(progressRunnable);
@@ -143,8 +215,35 @@ public class PlayerActivity extends AppCompatActivity {
     }
 
     @Override
+    protected void onResume() {
+        super.onResume();
+        scheduleAutoImmersive();
+    }
+
+    @Override
+    protected void onPause() {
+        handler.removeCallbacks(autoImmersiveRunnable);
+        super.onPause();
+    }
+
+    @Override
+    public void onUserInteraction() {
+        super.onUserInteraction();
+        scheduleAutoImmersive();
+        if (immersiveMode) {
+            handler.postDelayed(this::refreshImmersiveFlags, 300);
+        }
+    }
+
+    @Override
     protected void onDestroy() {
         handler.removeCallbacks(progressRunnable);
+        handler.removeCallbacks(recenterLyricsRunnable);
+        handler.removeCallbacks(autoImmersiveRunnable);
+        if (lyricsStylePopup != null) {
+            lyricsStylePopup.dismiss();
+            lyricsStylePopup = null;
+        }
         MusicService.removeEventListener(musicEventListener);
         try {
             unbindService(serviceConnection);
@@ -592,21 +691,39 @@ public class PlayerActivity extends AppCompatActivity {
         boolean landscape = getResources().getConfiguration().orientation
                 == android.content.res.Configuration.ORIENTATION_LANDSCAPE;
         View decor = getWindow().getDecorView();
-        if (landscape) {
-            // compileSdk 29，拿不到 API 30 的 WindowInsetsController，只能用这个旧 flag（仍然生效）
-            decor.setSystemUiVisibility(View.SYSTEM_UI_FLAG_FULLSCREEN);
+        if (landscape && immersiveMode) {
+            // 隐藏状态栏和底部控制栏，内容铺到屏幕边缘
+            decor.setSystemUiVisibility(IMMERSIVE_FLAGS);
+            // 从“栏已显示”的状态重新进入时，单次设置可能不立即生效，多试几次
+            decor.postDelayed(this::refreshImmersiveFlags, 600);
+            decor.postDelayed(this::refreshImmersiveFlags, 1800);
+            decor.postDelayed(this::refreshImmersiveFlags, 3500);
+            // 进沉浸约 1 秒后武装：确认栏已收起，之后系统再露出栏就视为用户点击退出
+            decor.postDelayed(() -> {
+                if (immersiveMode && isLandscapeNow()) immersiveArmed = true;
+            }, 1000);
+            decor.setOnSystemUiVisibilityChangeListener(visibility -> {
+                if (!immersiveMode || !immersiveArmed) return;
+                if ((visibility & View.SYSTEM_UI_FLAG_FULLSCREEN) == 0) {
+                    // 用户点击把系统栏唤出来了：退出沉浸，状态栏和底部栏一起恢复
+                    immersiveMode = false;
+                    immersiveArmed = false;
+                    userExitedImmersive = true;
+                    decor.setSystemUiVisibility(View.SYSTEM_UI_FLAG_VISIBLE);
+                    updateStatusBarColor(lastColor);
+                    scheduleAutoImmersive();
+                }
+            });
         } else {
+            // 退出沉浸 / 竖屏：状态栏和导航栏都显示，状态栏跟随背景色
             decor.setSystemUiVisibility(View.SYSTEM_UI_FLAG_VISIBLE);
+            decor.setOnSystemUiVisibilityChangeListener(null);
             updateStatusBarColor(lastColor);
         }
     }
 
     /** 竖屏下让状态栏跟随页面背景色，并切换图标明暗；横屏状态栏隐藏，直接忽略 */
     private void updateStatusBarColor(int color) {
-        if (getResources().getConfiguration().orientation
-                == android.content.res.Configuration.ORIENTATION_LANDSCAPE) {
-            return;
-        }
         Window window = getWindow();
         window.setStatusBarColor(color);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
@@ -652,16 +769,17 @@ public class PlayerActivity extends AppCompatActivity {
         // 横屏 48/40sp（车机远距离阅读）；竖屏字号减半为 24/20sp
         boolean landscape = getResources().getConfiguration().orientation
                 == android.content.res.Configuration.ORIENTATION_LANDSCAPE;
-        float highlightSize = landscape ? 48f : 24f;
-        float normalSize = landscape ? 40f : 20f;
+        float highlightSize = (landscape ? 48f : 24f) * lyricsFontScale;
+        float normalSize = (landscape ? 40f : 20f) * lyricsFontScale;
         // 固定行高（px）= 高亮字号 × 1.3 行距 + item 上下留白，保证文字完整不截断。
         // 横屏留白收到 10dp：手机上横屏可视高度只有 300dp 出头，原来上下各 20dp 的留白
         // 会让行间距显得非常空，一屏只能看到三四行。竖屏保持原样。
         float density = getResources().getDisplayMetrics().density;
         int lineHeight = (int) (highlightSize * 1.3f * density + 0.5f);
-        int padVertical = (int) ((landscape ? 10f : 40f) * density + 0.5f);
-        lyricsAdapter.setItemHeightPx(lineHeight + padVertical);
-        lyricsAdapter.setColors(highlightColor, normalColor, highlightSize, normalSize, dark);
+        int padVertical = (int) (((landscape ? 10f : 40f) + lyricsSpacingExtraDp) * density + 0.5f);
+        // 一次性应用，拖动滑杆时不会因为多次 notifyDataSetChanged 而卡顿
+        lyricsAdapter.applyStyle(highlightColor, normalColor, highlightSize, normalSize, dark,
+                lineHeight + padVertical);
     }
 
     /**
@@ -676,6 +794,159 @@ public class PlayerActivity extends AppCompatActivity {
      * 图标保持 32dp（播放/暂停 28dp，沿用原设计"稍小"的观感），
      * 宽屏上 padding 自然回到 22dp/24dp、与改动前完全一致，只有窄屏才会缩小留白。
      */
+    // ---------------- 歌词样式（字号/行距） ----------------
+
+    private void setupLyricsStyleEntry() {
+        lyricsStyleButton = findViewById(R.id.lyrics_style_button);
+        if (lyricsStyleButton == null) return; // 竖屏没有入口
+        lyricsStyleButton.setOnClickListener(v -> showLyricsStylePanel());
+    }
+
+    private int dp(float value) {
+        return Math.round(value * getResources().getDisplayMetrics().density);
+    }
+
+    private void showLyricsStylePanel() {
+        if (lyricsStyleButton == null) return;
+        if (lyricsStylePopup != null && lyricsStylePopup.isShowing()) {
+            lyricsStylePopup.dismiss();
+            return;
+        }
+        if (lyricsStylePopup == null) {
+            View panel = LayoutInflater.from(this).inflate(R.layout.lyrics_style_panel, null);
+            lyricsFontSeek = panel.findViewById(R.id.lyrics_font_seek);
+            lyricsSpacingSeek = panel.findViewById(R.id.lyrics_spacing_seek);
+            lyricsFontValue = panel.findViewById(R.id.lyrics_font_value);
+            lyricsSpacingValue = panel.findViewById(R.id.lyrics_spacing_value);
+            lyricsFontSeek.setMax(140);
+            lyricsSpacingSeek.setMax(48);
+            lyricsFontSeek.setOnSeekBarChangeListener(new SimpleSeekListener() {
+                @Override
+                public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                    if (!fromUser) return;
+                    lyricsFontScale = 0.6f + progress / 100f;
+                    updateLyricsStyleLabels();
+                    applyLyricsStyleLive();
+                }
+
+                @Override
+                public void onStopTrackingTouch(SeekBar seekBar) {
+                    persistLyricsStyle();
+                }
+            });
+            lyricsSpacingSeek.setOnSeekBarChangeListener(new SimpleSeekListener() {
+                @Override
+                public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                    if (!fromUser) return;
+                    lyricsSpacingExtraDp = progress;
+                    updateLyricsStyleLabels();
+                    applyLyricsStyleLive();
+                }
+
+                @Override
+                public void onStopTrackingTouch(SeekBar seekBar) {
+                    persistLyricsStyle();
+                }
+            });
+            lyricsStylePopup = new PopupWindow(panel, dp(330), ViewGroup.LayoutParams.WRAP_CONTENT, true);
+            lyricsStylePopup.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+            lyricsStylePopup.setOutsideTouchable(true);
+            lyricsStylePopup.setFocusable(true);
+            lyricsStylePopup.setOnDismissListener(() -> {
+                persistLyricsStyle();
+                scheduleAutoImmersive();
+            });
+        }
+        // 每次打开与当前值对齐（setProgress 会触发 fromUser=false，上面已忽略）
+        lyricsFontSeek.setProgress(Math.round((lyricsFontScale - 0.6f) * 100));
+        lyricsSpacingSeek.setProgress(lyricsSpacingExtraDp);
+        updateLyricsStyleLabels();
+
+        handler.removeCallbacks(autoImmersiveRunnable);
+        int width = dp(330);
+        int[] loc = new int[2];
+        lyricsStyleButton.getLocationOnScreen(loc);
+        int x = loc[0] + lyricsStyleButton.getWidth() - width;
+        if (x < 0) x = 0;
+        int y = loc[1] + lyricsStyleButton.getHeight() + dp(4);
+        lyricsStylePopup.showAtLocation(getWindow().getDecorView(), Gravity.NO_GRAVITY, x, y);
+    }
+
+    private void updateLyricsStyleLabels() {
+        if (lyricsFontValue != null) {
+            lyricsFontValue.setText(String.format(Locale.CHINA, getString(R.string.lyrics_style_font_value),
+                    Math.round(lyricsFontScale * 100)));
+        }
+        if (lyricsSpacingValue != null) {
+            lyricsSpacingValue.setText(String.format(Locale.CHINA, getString(R.string.lyrics_style_spacing_value),
+                    lyricsSpacingExtraDp));
+        }
+    }
+
+    /** 拖动即生效：重算字号/行高并刷新，随后把当前高亮行重新居中 */
+    private void applyLyricsStyleLive() {
+        applyLyricsColors();
+        handler.removeCallbacks(recenterLyricsRunnable);
+        handler.postDelayed(recenterLyricsRunnable, 60);
+    }
+
+    private void persistLyricsStyle() {
+        UiSettings.setLyricsFontScale(this, lyricsFontScale);
+        UiSettings.setLyricsSpacingExtraDp(this, lyricsSpacingExtraDp);
+    }
+
+    /** 只关心进度变化/松手，开始拖动忽略 */
+    private abstract static class SimpleSeekListener implements SeekBar.OnSeekBarChangeListener {
+        @Override
+        public void onStartTrackingTouch(SeekBar seekBar) {
+        }
+    }
+
+    private boolean isLandscapeNow() {
+        return getResources().getConfiguration().orientation
+                == android.content.res.Configuration.ORIENTATION_LANDSCAPE;
+    }
+
+    @Override
+    public boolean dispatchTouchEvent(MotionEvent event) {
+        // 沉浸状态下点屏幕：退出全屏，状态栏和底部控制栏一起回来
+        if (event.getActionMasked() == MotionEvent.ACTION_DOWN && immersiveMode) {
+            immersiveMode = false;
+            immersiveArmed = false;
+            userExitedImmersive = true;
+            applySystemBars();
+        }
+        return super.dispatchTouchEvent(event);
+    }
+
+    @Override
+    public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        if (hasFocus && immersiveMode && isLandscapeNow()) {
+            View decor = getWindow().getDecorView();
+            decor.postDelayed(() -> {
+                if (immersiveMode && isLandscapeNow()) {
+                    decor.setSystemUiVisibility(IMMERSIVE_FLAGS);
+                }
+            }, 200);
+        }
+        if (hasFocus) scheduleAutoImmersive();
+    }
+
+    // ---------------- 横屏沉浸模式 ----------------
+
+    private void refreshImmersiveFlags() {
+        if (!immersiveMode || !isLandscapeNow()) return;
+        getWindow().getDecorView().setSystemUiVisibility(IMMERSIVE_FLAGS);
+    }
+
+    private void scheduleAutoImmersive() {
+        handler.removeCallbacks(autoImmersiveRunnable);
+        if (!isLandscapeNow()) return;
+        if (lyricsStylePopup != null && lyricsStylePopup.isShowing()) return;
+        handler.postDelayed(autoImmersiveRunnable, AUTO_IMMERSIVE_DELAY_MS);
+    }
+
     private void applyAdaptiveControlSizes() {
         final float density = getResources().getDisplayMetrics().density;
         final int minPad = Math.round(6 * density);

@@ -17,8 +17,9 @@
 
         <activity
             android:name=".activity.MainActivity"
+            android:alwaysRetainTaskState="true"
             android:configChanges="orientation|screenSize|keyboardHidden"
-            android:launchMode="singleTask"
+            android:launchMode="singleTop"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -40,7 +41,7 @@
             android:excludeFromRecents="true"
             android:exported="true"
             android:noHistory="true"
-            android:taskAffinity="top.juluo.ddmusic.voicerelay"
+            android:taskAffinity="${applicationId}.voicerelay"
             android:theme="@style/VoiceRelayTheme">
             <intent-filter>
                 <action android:name="cn.kuwo.kwmusicauto.action.STARTAPP" />
@@ -107,6 +108,15 @@
                 <action android:name="cn.kuwo.kwmusicauto.action.PAGE_OPERATION" />
                 <action android:name="cn.kuwo.kwmusicauto.action.JUMP" />
                 <action android:name="cn.kuwo.music.car.actions" />
+                <!-- 比亚迪小迪通用第三方音乐协议：音乐源被选成本应用时，小迪直接发这些广播 -->
+                <action android:name="com.byd.action.AUTOVOICE_PLAY_RANDOM" />
+                <action android:name="com.byd.action.AUTOVOICE_SEARCH" />
+                <action android:name="com.byd.action.AUTOVOICE_SEARCH_PLUS" />
+                <action android:name="com.byd.action.AUTOVOICE_PLAY_FAVORITE" />
+                <action android:name="com.byd.action.AUTOVOICE_PLAY_LATELY" />
+                <action android:name="com.byd.action.AUTOVOICE_PLAY_DOWNLOAD" />
+                <action android:name="com.byd.action.AUTOVOICE_RECOMMEND" />
+                <action android:name="com.byd.action.AUTOVOICE_JUMP_TO" />
             </intent-filter>
             <intent-filter>
                 <action android:name="android.intent.action.MEDIA_BUTTON" />
