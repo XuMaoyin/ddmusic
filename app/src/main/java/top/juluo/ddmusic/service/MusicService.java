@@ -101,6 +101,24 @@ public class MusicService extends Service {
         }
     };
 
+    /** 仪表盘进度条每秒刷新（仅播放中上报） */
+    private static final long INSTRUMENT_INTERVAL_MS = 1000;
+    private final Runnable instrumentRunnable = new Runnable() {
+        @Override
+        public void run() {
+            if (mediaPlayer != null && mediaPlayer.isPlaying()) {
+                try {
+                    top.juluo.ddmusic.util.InstrumentReporter.reportProgress(
+                            MusicService.this,
+                            mediaPlayer.getCurrentPosition() / 1000,
+                            mediaPlayer.getDuration() / 1000);
+                } catch (Exception ignored) {
+                }
+            }
+            saveHandler.postDelayed(this, INSTRUMENT_INTERVAL_MS);
+        }
+    };
+
     private MediaPlayer mediaPlayer;
     private MediaSessionCompat mediaSession;
     private MediaSessionManager mediaSessionManager;
@@ -153,6 +171,7 @@ public class MusicService extends Service {
         registerNoisyReceiver();
         // 播放中每 5 秒落盘一次，保证断电/强杀后仍能续播到秒
         saveHandler.postDelayed(saveRunnable, SAVE_INTERVAL_MS);
+        saveHandler.postDelayed(instrumentRunnable, INSTRUMENT_INTERVAL_MS);
     }
 
     @Override
@@ -183,7 +202,9 @@ public class MusicService extends Service {
     @Override
     public void onDestroy() {
         service = null;
+        top.juluo.ddmusic.util.InstrumentReporter.reportStop(this);
         saveHandler.removeCallbacks(saveRunnable);
+        saveHandler.removeCallbacks(instrumentRunnable);
         unregisterReceiver(noisyReceiver);
         if (mediaPlayer != null) {
             savePosition();
@@ -590,6 +611,12 @@ public class MusicService extends Service {
     }
 
     private void showNotification() {
+        // 设置里关闭“播放通知”时：撤下前台通知并不再显示。
+        // 注意：此时服务不再处于前台状态，应用退到后台后系统可能回收服务、中断播放。
+        if (!top.juluo.ddmusic.util.UiSettings.isShowPlayNotification(this)) {
+            stopForeground(true);
+            return;
+        }
         Song song = getCurrentSong();
         if (song == null) return;
         Intent openIntent = new Intent(this, MainActivity.class);
@@ -674,10 +701,12 @@ public class MusicService extends Service {
 
     private void notifyPlayStateChanged() {
         for (MusicEventListener l : listeners) l.onPlayStateChanged();
+        top.juluo.ddmusic.util.InstrumentReporter.reportState(this, isPlaying());
     }
 
     private void notifySongChanged() {
         for (MusicEventListener l : listeners) l.onSongChanged();
+        top.juluo.ddmusic.util.InstrumentReporter.reportSong(this, getCurrentSong());
     }
 
     private void notifyQueueChanged() {

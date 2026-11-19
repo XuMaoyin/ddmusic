@@ -396,6 +396,7 @@ public class KuwoVoiceReceiver extends BroadcastReceiver {
 
     /** 主线程弹出 Toast */
     private void showToast(@NonNull final Context context, @NonNull final String msg) {
+        if (!top.juluo.ddmusic.util.UiSettings.isVoiceToast(context)) return;
         try {
             new Handler(Looper.getMainLooper()).post(() ->
                     Toast.makeText(context.getApplicationContext(), msg, Toast.LENGTH_LONG).show());

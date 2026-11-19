@@ -16,6 +16,12 @@
     <string name="settings_auto_play">启动时自动播放</string>
     <string name="settings_auto_play_on">打开应用后自动续播，并直接进入播放页</string>
     <string name="settings_auto_play_off">打开应用后停留在歌曲列表，不自动播放</string>
+    <string name="settings_show_notification">播放通知</string>
+    <string name="settings_show_notification_on">通知栏常驻播放控制，后台播放更稳定</string>
+    <string name="settings_show_notification_off">不显示通知；应用退到后台时系统可能中断播放</string>
+    <string name="settings_voice_toast">语音提示</string>
+    <string name="settings_voice_toast_on">语音点歌时弹出提示（收到指令 / 命中几首），便于确认</string>
+    <string name="settings_voice_toast_off">语音点歌时不弹提示，安静执行</string>
 
     <string name="settings_section_player">播放页</string>
     <string name="settings_lyrics_left">横屏时歌词显示在左侧</string>

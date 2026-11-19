@@ -9,6 +9,94 @@
 
 ---
 
+# 2026-11-19
+
+## 1.0.17：声明 BYDAUTO_INSTRUMENT_COMMON，打通仪表盘直推
+
+**问题**：1.0.16 直推仪表盘抛 SecurityException：缺 `android.permission.BYDAUTO_INSTRUMENT_COMMON`。
+
+**关键发现**：该权限在车机上为 **prot=normal**（dumpsys package android 确认），manifest 声明即授予；且 `MediaStateDelegate.isFocusOwner` 校验"设备实例包名==当前音频焦点包"，本 App 播放中持焦点，天然满足。
+
+**改动**：manifest 增加 `<uses-permission android:name="android.permission.BYDAUTO_INSTRUMENT_COMMON" />`。
+
+**验证**：车机实测——权限授予成功、delegate 焦点校验通过，但底层 `nativeSetInt` 抛
+`SecurityException: [setInt] permission deny!`：VHAL 原生层按信号维护调用方 ACL
+（仅系统/平台签名或官方合作伙伴），manifest 权限管不到这一层。**第三方直推仪表盘确认不可行。**
+
+**补充尝试**：伪装白名单包名（com.kugou.android.auto 等）借媒体中心代理转发——实测酷狗/喜马拉雅/云听
+虽被停用但包记录仍在系统分区（签名不同，无法覆盖安装），此路也不通。
+
+**遗留**：A/B 链路代码保留（静默降级无副作用）；仪表盘显示歌名需 BYD 官方合作或平台签名。
+
+## 1.0.16：仪表盘直推链路（BYDAutoInstrumentDevice）
+
+**问题**：1.0.15 修好 mediaMode 后数据进了 MultiMediaControl，但仪表盘仍无显示——仪表盘不吃这条链路。
+
+**根因**：仪表盘的歌曲信息由媒体中心 `MCUToolsImpl` 经 `BYDAutoInstrumentDevice.sendMusicInfo(UTF-16LE≤96B)`、`sendMusicState(1/2)`、`sendMusicPlaybackProgress(百分比)`、`BYDAutoAudioDevice.sendSingerName` 直推 VHAL；系统侧校验调用者为当前音频焦点持有者（`MediaStateDelegate.isFocusOwner`）。
+
+**改动**：`InstrumentReporter` 增加 B 链路（仪表盘/音频设备直推，协议照抄媒体中心：source=1 本地、状态 1 播放/2 暂停、进度百分比、总时长/播放时长时分秒），与原 A 链路并行；全部反射、失败仅记日志。
+
+**验证**：车机实测——1.0.17 补权限后调用可达 delegate，但被 VHAL 原生 ACL 拒绝（见 1.0.17 条目）。
+
+## 1.0.15：仪表盘上报修复——先设 mediaType
+
+**问题**：1.0.14 的上报全部到达系统但被丢弃，仪表盘无显示；系统日志 `current mediaMode is: -1`。
+
+**根因**：`MultiMediaControl.setPlayMediaInfo/setPlayProgress/setPlayState` 均校验入参 mode 与 `mMediaMode` 相等；`mMediaMode` 由 `getModeByMediaTypeLocked()` 从 mediaType 推导（8=LOCAL_AUDIO→1=music），从未设置时是 -1，所有 mode=1 的上报被丢。
+
+**改动**：`InstrumentReporter.ensureMediaType()`——上报前检查 `AudioManager.getMediaType()`，非 8 则 `setMediaType(8)`（AudioService 转发无权限校验，反射调用实测可达）。
+
+**验证**：车机实测通过——mediaMode 变 1，歌名/歌手/状态/进度全部进入 MultiMediaControl；
+但仪表盘不消费该链路（仪表数据走 INSTRUMENT_* VHAL 信号），显示无变化。
+
+## 1.0.14：仪表盘显示歌名/歌手（BYD 私有通道）
+
+**需求**：像自带 App 一样，在仪表盘显示当前播放的歌曲信息。
+
+**原理**：反编译发现酷我经 `android.hardware.bydauto.multimedia.BYDAutoMultimediaDevice` →
+`AudioManager.setPlayMediaInfo/setPlayState/setPlayProgress`（BYD 隐藏扩展）→ VHAL 信号
+`INSTRUMENT_MUSIC_INFO_SET` 等 → 仪表盘。`MediaInfo` 仅有 fileName(歌名)/artistName/albumName/duration 四字段，无歌词字段。
+
+**改动**：
+- 新增 `InstrumentReporter`：全反射调用，任何失败静默降级停用
+- MusicService：切歌报歌曲信息，播放/暂停报状态，播放中每秒报进度，销毁时报停止
+
+**验证**：车机实测——调用可达系统（MultiMediaControl 收到），但因未设 mediaType 被丢弃（mediaMode=-1），见 1.0.15。
+
+## 1.0.13：语音提示（Toast）开关
+
+**需求**：语音点歌时“收到指令 / 命中几首”的 Toast 提示希望能关掉。
+
+**改动**：
+- 设置 → 播放行为新增「语音提示」开关（默认开，与旧行为一致）
+- 关闭后 KuwoVoiceReceiver 的所有调试 Toast 不再弹出，语音指令安静执行
+
+**验证**：编译通过；车机验证待做。
+
+## 1.0.12：横屏左栏自适应排版
+
+**需求**：全屏后歌名偏小、按钮下方空白大；希望歌名自适应大小、居中放在封面和按钮之间。
+
+**改动**：
+- 左栏顺序改为：封面（weight=1）→ 歌名/歌手 → 控制按钮
+- 歌名/歌手水平居中；歌名 autoSize 16–40sp、歌手 12–24sp，随左栏宽度自适应
+- 封面顶部 padding 收窄，标题块紧凑，消除按钮下方大片空白
+
+**验证**：编译通过；车机验证待做。
+
+
+## 1.0.11：全屏排版微调 + 播放通知开关
+
+**需求**：1) 全屏后歌名偏小、播放按钮下方空白偏多；2) 通知栏的播放常驻通知希望能关掉。
+
+**改动**：
+- 横屏播放页歌名 20sp→28sp、歌手 14sp→17sp
+- 播放按钮行底部 padding 8dp→2dp，进度条行 44dp→38dp，收紧按钮下方空白
+- 设置 → 播放行为新增「播放通知」开关（默认开）；关闭后 `stopForeground` 撤下通知
+- 注意：关闭通知后服务不再是前台服务，应用退到后台时系统可能回收服务、中断播放（设置页文案已提示）
+
+**验证**：编译通过；车机验证待做。
+
 # 2026-11-16
 
 ## 1.0.10：修复桌面图标进入回歌曲列表

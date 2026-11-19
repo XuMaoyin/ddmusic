@@ -11,7 +11,7 @@
     android:paddingLeft="12dp"
     android:paddingTop="4dp"
     android:paddingRight="12dp"
-    android:paddingBottom="8dp">
+    android:paddingBottom="2dp">
 
     <!-- 合并循环/随机：单个播放模式按钮（顺序→单曲循环→随机循环） -->
     <ImageButton

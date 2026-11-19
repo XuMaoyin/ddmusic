@@ -29,8 +29,12 @@ public class SettingsActivity extends AppCompatActivity {
 
     private SwitchCompat switchAutoPlay;
     private SwitchCompat switchLyricsLeft;
+    private SwitchCompat switchShowNotification;
+    private SwitchCompat switchVoiceToast;
     private TextView autoPlayDesc;
     private TextView lyricsSideDesc;
+    private TextView showNotificationDesc;
+    private TextView voiceToastDesc;
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -115,6 +119,30 @@ public class SettingsActivity extends AppCompatActivity {
         // 整行可点：开关本身可点时，点开关走它自己的回调，不会重复触发
         findViewById(R.id.row_auto_play).setOnClickListener(v -> switchAutoPlay.toggle());
 
+        switchShowNotification = findViewById(R.id.switch_show_notification);
+        showNotificationDesc = findViewById(R.id.show_notification_desc);
+        boolean showNotification = UiSettings.isShowPlayNotification(this);
+        switchShowNotification.setChecked(showNotification);
+        updateShowNotificationDesc(showNotification);
+        switchShowNotification.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            UiSettings.setShowPlayNotification(this, isChecked);
+            updateShowNotificationDesc(isChecked);
+            // 立即让服务按新设置刷新（显示或撤下通知）
+            startService(new Intent(this, top.juluo.ddmusic.service.MusicService.class));
+        });
+        findViewById(R.id.row_show_notification).setOnClickListener(v -> switchShowNotification.toggle());
+
+        switchVoiceToast = findViewById(R.id.switch_voice_toast);
+        voiceToastDesc = findViewById(R.id.voice_toast_desc);
+        boolean voiceToast = UiSettings.isVoiceToast(this);
+        switchVoiceToast.setChecked(voiceToast);
+        updateVoiceToastDesc(voiceToast);
+        switchVoiceToast.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            UiSettings.setVoiceToast(this, isChecked);
+            updateVoiceToastDesc(isChecked);
+        });
+        findViewById(R.id.row_voice_toast).setOnClickListener(v -> switchVoiceToast.toggle());
+
         boolean lyricsLeft = UiSettings.isLyricsOnLeft(this);
         switchLyricsLeft.setChecked(lyricsLeft);
         updateLyricsSideDesc(lyricsLeft);
@@ -123,6 +151,16 @@ public class SettingsActivity extends AppCompatActivity {
             updateLyricsSideDesc(isChecked);
         });
         findViewById(R.id.row_lyrics_left).setOnClickListener(v -> switchLyricsLeft.toggle());
+    }
+
+    private void updateVoiceToastDesc(boolean enabled) {
+        voiceToastDesc.setText(enabled
+                ? R.string.settings_voice_toast_on : R.string.settings_voice_toast_off);
+    }
+
+    private void updateShowNotificationDesc(boolean enabled) {
+        showNotificationDesc.setText(enabled
+                ? R.string.settings_show_notification_on : R.string.settings_show_notification_off);
     }
 
     private void updateAutoPlayDesc(boolean enabled) {

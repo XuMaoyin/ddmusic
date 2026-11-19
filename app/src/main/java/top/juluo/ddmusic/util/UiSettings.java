@@ -12,6 +12,12 @@ public final class UiSettings {
 
     /** 启动时是否自动播放并跳转播放页 */
     private static final String KEY_AUTO_PLAY_ON_LAUNCH = "auto_play_on_launch";
+
+    /** 是否在通知栏常驻播放控制（前台服务通知）。默认开。 */
+    private static final String KEY_SHOW_PLAY_NOTIFICATION = "show_play_notification";
+
+    /** 语音指令调试 Toast（收到指令 / 命中几首）。默认开。 */
+    private static final String KEY_VOICE_TOAST = "voice_toast";
     /** 横屏播放页歌词是否放在左侧（默认右侧，与原有布局一致） */
     private static final String KEY_LYRICS_ON_LEFT = "lyrics_on_left";
     /** 曲库列表排序方式，取值同 SongLoader.SORT_* */
@@ -28,6 +34,22 @@ public final class UiSettings {
 
     public static void setAutoPlayOnLaunch(Context context, boolean enabled) {
         prefs(context).edit().putBoolean(KEY_AUTO_PLAY_ON_LAUNCH, enabled).apply();
+    }
+
+    public static boolean isShowPlayNotification(Context context) {
+        return prefs(context).getBoolean(KEY_SHOW_PLAY_NOTIFICATION, true);
+    }
+
+    public static void setShowPlayNotification(Context context, boolean enabled) {
+        prefs(context).edit().putBoolean(KEY_SHOW_PLAY_NOTIFICATION, enabled).apply();
+    }
+
+    public static boolean isVoiceToast(Context context) {
+        return prefs(context).getBoolean(KEY_VOICE_TOAST, true);
+    }
+
+    public static void setVoiceToast(Context context, boolean enabled) {
+        prefs(context).edit().putBoolean(KEY_VOICE_TOAST, enabled).apply();
     }
 
     /** 默认关：保持原有"封面在左、歌词在右"的布局 */

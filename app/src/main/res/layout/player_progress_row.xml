@@ -2,7 +2,7 @@
 <!-- 进度条一行：当前时间 / 细线进度条 / 总时长。
      竖屏嵌在控制区顶部；横屏由 activity_player 放在屏幕最底部、横跨整个宽度。
      轨道 2dp：ProgressBar 会把 progressDrawable 拉伸铺满内容区，
-     所以粗细靠上下 padding 控制（44dp - 21 - 21 = 2dp），而不是 drawable 里的 size。 -->
+     所以粗细靠上下 padding 控制（38dp - 18 - 18 = 2dp），而不是 drawable 里的 size。 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
@@ -25,14 +25,14 @@
     <SeekBar
         android:id="@+id/player_progress_slider"
         android:layout_width="0dp"
-        android:layout_height="44dp"
+        android:layout_height="38dp"
         android:layout_marginLeft="12dp"
         android:layout_marginRight="12dp"
         android:layout_weight="1"
         android:paddingLeft="0dp"
-        android:paddingTop="21dp"
+        android:paddingTop="18dp"
         android:paddingRight="0dp"
-        android:paddingBottom="21dp"
+        android:paddingBottom="18dp"
         android:progressDrawable="@drawable/slider_progress"
         android:splitTrack="false"
         android:thumb="@null" />
