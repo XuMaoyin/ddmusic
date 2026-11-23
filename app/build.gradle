@@ -27,15 +27,13 @@ android {
     }
 
     defaultConfig {
-        // 默认正式包名；做小迪“伪装音乐源”测试时可覆盖：
-        //   ./gradlew assembleDebug -PtestAppId=com.spotify.music
-        applicationId project.hasProperty('testAppId')
-                ? project.property('testAppId').toString()
-                : "top.juluo.ddmusic"
+        // 包名即小迪语音白名单身份（MediaUtil.e 之一），不要随意更改，
+        // 改了会失去小迪语音注册与点播能力。
+        applicationId "com.netease.cloudmusic.iot"
         minSdkVersion 21
         targetSdkVersion 29
-        versionCode 19
-        versionName "1.0.18"
+        versionCode 20
+        versionName "1.0.19"
     }
 
     buildTypes {

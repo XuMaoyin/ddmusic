@@ -29,7 +29,6 @@ import top.juluo.ddmusic.R;
 import top.juluo.ddmusic.helper.MusicPlayerRemote;
 import top.juluo.ddmusic.loader.SongLoader;
 import top.juluo.ddmusic.model.Song;
-import top.juluo.ddmusic.receiver.KuwoVoiceReceiver;
 import top.juluo.ddmusic.service.MusicService;
 import top.juluo.ddmusic.ui.adapter.SongAdapter;
 
@@ -108,7 +107,7 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         // 是否"打开即播放并进入播放页"由设置决定；
-        // 语音指令仍会强制自动播放（handleCarIntent 里会把 autoPlayPending 置回 true）
+        // 语音点播走 VoiceReceiver 广播通道，不经过本 Activity
         autoPlayPending = top.juluo.ddmusic.util.UiSettings.isAutoPlayOnLaunch(this);
         // 列表默认排序由设置决定（初始值 = 按最近添加）
         sortMode = top.juluo.ddmusic.util.UiSettings.getSortMode(this);
@@ -121,14 +120,12 @@ public class MainActivity extends AppCompatActivity {
         setupMiniPlayer();
         requestStoragePermission();
         bindService(new Intent(this, MusicService.class), serviceConnection, BIND_AUTO_CREATE);
-        handleCarIntent(getIntent());
     }
 
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         setIntent(intent);
-        handleCarIntent(intent);
     }
 
     /** 曲库版本号：从设置页返回（或曲库被其它地方置为失效）时据此刷新列表 */
@@ -354,52 +351,4 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    private static long lastCarIntentTime = 0;
-
-    /** 小迪语音（酷我协议 activity intent / 广播统一入口，双通道去重） */
-    private void handleCarIntent(Intent intent) {
-        if (intent == null) return;
-        String action = intent.getAction();
-        Bundle extras = intent.getExtras();
-        boolean hasCarAction = action != null
-                && (action.startsWith("cn.kuwo.kwmusicauto.action.")
-                || "cn.kuwo.music.car.actions".equals(action));
-        boolean hasSongExtra = extras != null
-                && (extras.containsKey("name") || extras.containsKey("songname")
-                || extras.containsKey("songName") || extras.containsKey("song")
-                || extras.containsKey("keyword") || extras.containsKey("query"));
-        if (hasCarAction || hasSongExtra) {
-            long now = System.currentTimeMillis();
-            if (now - lastCarIntentTime < 2000) {
-                return;
-            }
-            lastCarIntentTime = now;
-            if (hasConcreteSongQuery(extras)) {
-                autoPlayPending = false;
-                try {
-                    new KuwoVoiceReceiver().onReceive(this, intent);
-                } catch (Exception ignored) {
-                }
-            } else {
-                autoPlayPending = true;
-                if (MusicPlayerRemote.musicService != null) {
-                    autoPlayPending = false;
-                    playMusicAndExpand();
-                }
-            }
-        }
-    }
-
-    private boolean hasConcreteSongQuery(@Nullable Bundle extras) {
-        if (extras == null) return false;
-        String[] keys = {"name", "songname", "songName", "song", "keyword", "query", "title", "value", "content", "search"};
-        for (String k : keys) {
-            Object v = extras.get(k);
-            if (v != null) {
-                String s = v.toString().trim();
-                if (!s.isEmpty()) return true;
-            }
-        }
-        return false;
-    }
 }

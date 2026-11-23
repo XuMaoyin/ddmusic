@@ -4,8 +4,6 @@ import android.content.Context;
 import android.database.Cursor;
 import android.provider.MediaStore;
 
-import top.juluo.ddmusic.model.Album;
-import top.juluo.ddmusic.model.Artist;
 import top.juluo.ddmusic.model.Song;
 import top.juluo.ddmusic.util.PlayCountManager;
 
@@ -166,37 +164,6 @@ public class SongLoader {
         return songs.isEmpty() ? null : songs.get(0);
     }
 
-    /** 专辑列表（来自全部歌曲分组，按专辑名排序） */
-    public static List<Album> getAlbums(Context context) {
-        Map<Long, Album> map = new LinkedHashMap<>();
-        for (Song song : getAllSongs(context)) {
-            Album album = map.get(song.albumId);
-            if (album == null) {
-                album = new Album(song.albumId, song.albumName, song.artistName, song.year, song.artistId);
-                map.put(song.albumId, album);
-            }
-            album.addSong(song);
-        }
-        List<Album> albums = new ArrayList<>(map.values());
-        Collections.sort(albums, (a, b) -> a.name.compareToIgnoreCase(b.name));
-        return albums;
-    }
-
-    /** 歌手列表（来自全部歌曲分组，按歌手名排序） */
-    public static List<Artist> getArtists(Context context) {
-        Map<Long, Artist> map = new LinkedHashMap<>();
-        for (Song song : getAllSongs(context)) {
-            Artist artist = map.get(song.artistId);
-            if (artist == null) {
-                artist = new Artist(song.artistId, song.artistName);
-                map.put(song.artistId, artist);
-            }
-            artist.addSong(song);
-        }
-        List<Artist> artists = new ArrayList<>(map.values());
-        Collections.sort(artists, (a, b) -> a.name.compareToIgnoreCase(b.name));
-        return artists;
-    }
 
     private static List<Song> query(Context context, String selection, String[] args, String orderBy) {
         List<Song> songs = new ArrayList<>();

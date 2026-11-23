@@ -47,10 +47,4 @@
         <item name="android:focusable">true</item>
     </style>
 
-    <!-- 语音指令中转页：全透明、无标题、无转场动画，处理完立即结束 -->
-    <style name="VoiceRelayTheme" parent="@android:style/Theme.Translucent.NoTitleBar">
-        <item name="android:windowBackground">@android:color/transparent</item>
-        <item name="android:backgroundDimEnabled">false</item>
-        <item name="android:windowAnimationStyle">@null</item>
-    </style>
 </resources>

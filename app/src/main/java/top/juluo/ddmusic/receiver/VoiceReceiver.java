@@ -24,35 +24,31 @@ import top.juluo.ddmusic.service.MusicService;
 import java.util.List;
 
 /**
- * 接收比亚迪 DiLink 小迪语音通过酷我车机协议发出的音乐指令，
- * 把"搜索/播放XX"重定向到本地曲库搜索与播放。
+ * 接收比亚迪 DiLink 小迪语音指令，重定向到本地曲库搜索与播放。
+ *
+ * <p>两条通道：
+ * <ul>
+ *   <li>点播：本包名在小迪白名单（MediaUtil.e）内且经 {@code VoiceRegistrar} 注册后，
+ *       小迪把 {@code com.byd.action.AUTOVOICE_*} 广播定向发给本包；</li>
+ *   <li>播放控制：方向盘/语音的"上一曲/下一曲/播放/暂停"走系统
+ *       {@code android.intent.action.MEDIA_BUTTON}（无活动会话时的兜底通道，
+ *       正常播放中由 MediaSession 直接接收按键，不经过这里）。</li>
+ * </ul>
  *
  * 验收过的行为：
  * - 歌手 + 歌名精确匹配（"播放梁静茹的《情歌》"→ 梁静茹《情歌》，不误播同名歌）
  * - 搜索命中后以整个本地曲库为播放队列、命中歌定位到整库位置播放（可切歌）
- * - "播放音乐"（无歌名）→ 等价打开 APP，走 MainActivity 自动播放（续播/从头播 + 跳播放页）
- * - 语音"下一曲/上一曲"：酷我 MEDIA_BUTTON 与系统 MEDIA_BUTTON 双通道（用户实测未生效，保留实现）
+ * - "播放音乐"（无歌名）→ 随机播放整库，不打断当前界面
  */
-public class KuwoVoiceReceiver extends BroadcastReceiver {
-    private static final String TAG = "KuwoVoice";
+public class VoiceReceiver extends BroadcastReceiver {
+    private static final String TAG = "VoiceReceiver";
 
-    public static final String ACTION_SEARCH_MUSIC = "cn.kuwo.kwmusicauto.action.SEARCH_MUSIC";
-    public static final String ACTION_PLAY_MUSIC = "cn.kuwo.kwmusicauto.action.PLAY_MUSIC";
-    public static final String ACTION_SEARCH_AND_PLAY_BY_SONGLISTID = "cn.kuwo.kwmusicauto.action.SEARCH_AND_PLAY_MUSIC_BY_SONGLISTID";
-    public static final String ACTION_PLAY_ALBUM = "cn.kuwo.kwmusicauto.action.PLAY_ALBUM";
-    public static final String ACTION_RANDOM_PLAY = "cn.kuwo.kwmusicauto.action.RANDOM_PLAY_MUSIC";
-    public static final String ACTION_STARTAPP = "cn.kuwo.kwmusicauto.action.STARTAPP";
-    public static final String ACTION_JUMP = "cn.kuwo.kwmusicauto.action.JUMP";
-    public static final String ACTION_PLAY_MUSIC_INDEX = "cn.kuwo.kwmusicauto.action.PLAY_MUSIC_INDEX";
-    public static final String ACTION_PLAY_MUSIC_BY_TYPE = "cn.kuwo.kwmusicauto.action.PLAY_MUSIC_BY_TYPE";
-    public static final String ACTION_PAGE_OPERATION = "cn.kuwo.kwmusicauto.action.PAGE_OPERATION";
-    public static final String ACTION_MEDIA_BUTTON = "cn.kuwo.kwmusicauto.action.MEDIA_BUTTON";
-    /** 系统媒体按键广播（方向盘/小迪语音"下一曲/上一曲/播放/暂停"都走这个） */
+    /** 系统媒体按键广播（方向盘/小迪语音"下一曲/上一曲/播放/暂停"的兜底通道） */
     public static final String ACTION_SYSTEM_MEDIA_BUTTON = "android.intent.action.MEDIA_BUTTON";
 
     /**
-     * 比亚迪小迪自带的第三方音乐协议（不经过酷我）。
-     * 当车机“音乐源”里选中本应用时，小迪会把这些广播定向发给本包。
+     * 比亚迪小迪第三方音乐协议。
+     * 本应用注册为音乐源后，小迪把这些广播定向发给本包。
      */
     public static final String ACTION_BYD_SEARCH = "com.byd.action.AUTOVOICE_SEARCH";
     public static final String ACTION_BYD_SEARCH_PLUS = "com.byd.action.AUTOVOICE_SEARCH_PLUS";
@@ -78,17 +74,12 @@ public class KuwoVoiceReceiver extends BroadcastReceiver {
                 Log.d(TAG, "  extra[" + key + "] = " + extras.get(key));
             }
         }
-        // 车机屏幕可见反馈：确认指令已到达本 APP
+        // 车机屏幕可见反馈：确认指令已到达本 APP（设置里可关）
         showToast(context, "语音指令已到: " + (action == null ? "(无action)" : action));
 
         if (action == null) return;
 
-        if (ACTION_STARTAPP.equals(action)) {
-            openMainActivity(context);
-            return;
-        }
-
-        // ---------------- 比亚迪小迪通用协议（音乐源=本应用时直达） ----------------
+        // ---------------- 比亚迪小迪协议 ----------------
 
         if (ACTION_BYD_SEARCH.equals(action) || ACTION_BYD_SEARCH_PLUS.equals(action)) {
             String keyword = extras == null ? null : extras.getString(EXTRA_BYD_KEYWORDS);
@@ -124,54 +115,6 @@ public class KuwoVoiceReceiver extends BroadcastReceiver {
             // 本地曲库没有收藏/最近/下载分类，先按“打开并继续播放”处理
             Log.d(TAG, "BYD 其它播放指令，按打开播放处理: " + action);
             openMainActivity(context);
-            return;
-        }
-
-        // 搜索类 action：提取歌名(可附带歌手) -> 本地搜索 -> 播放
-        if (ACTION_SEARCH_MUSIC.equals(action)
-                || ACTION_PLAY_MUSIC.equals(action)
-                || ACTION_SEARCH_AND_PLAY_BY_SONGLISTID.equals(action)
-                || ACTION_PLAY_MUSIC_INDEX.equals(action)
-                || ACTION_PLAY_MUSIC_BY_TYPE.equals(action)) {
-            String query = extractQuery(extras);
-            if (query != null && !query.isEmpty()) {
-                playLocalByQuery(context, extractSinger(extras), query);
-            } else {
-                // 无歌名（如只说"播放音乐"）：等价打开 APP，MainActivity 自动播放（续播/从头播 + 跳播放页）
-                Log.d(TAG, "未提取到歌名，按'播放音乐'处理：打开并播放");
-                openMainActivity(context);
-            }
-            return;
-        }
-
-        if (ACTION_RANDOM_PLAY.equals(action)) {
-            List<Song> all = SongLoader.getAllSongs(context);
-            if (!all.isEmpty()) {
-                MusicPlayerRemote.openQueue(all, 0, true);
-                if (MusicPlayerRemote.musicService != null) {
-                    MusicPlayerRemote.musicService.setShuffleMode(MusicService.SHUFFLE_MODE_SHUFFLE);
-                }
-            }
-            return;
-        }
-
-        if (ACTION_PLAY_ALBUM.equals(action)) {
-            String query = extractQuery(extras);
-            if (query != null && !query.isEmpty()) {
-                playLocalByQuery(context, null, query);
-            }
-            return;
-        }
-
-        if (ACTION_JUMP.equals(action) || ACTION_PAGE_OPERATION.equals(action)) {
-            openMainActivity(context);
-        }
-
-        // 媒体控制（小迪"下一曲/上一曲/播放/暂停"）：EXTRA 里带命令
-        if (ACTION_MEDIA_BUTTON.equals(action)) {
-            String cmd = intent.getStringExtra("EXTRA");
-            Log.d(TAG, "MEDIA_BUTTON cmd=" + cmd);
-            handleMediaCommand(context, cmd);
         }
 
         // 系统媒体按键广播（方向盘/小迪语音走这个）：从 KEY_EVENT 取键码映射
@@ -187,7 +130,7 @@ public class KuwoVoiceReceiver extends BroadcastReceiver {
         }
     }
 
-    /** 系统媒体键码 -> 播放命令（与酷我 MediaButtonReceiver 一致：87→下一曲 / 88→上一曲 / 126→播放 / 127→暂停） */
+    /** 系统媒体键码 -> 播放命令 */
     @Nullable
     private String mapKeyCodeToCommand(int keyCode) {
         switch (keyCode) {
@@ -235,65 +178,6 @@ public class KuwoVoiceReceiver extends BroadcastReceiver {
         } catch (Exception e) {
             Log.w(TAG, "handleMediaCommand failed", e);
         }
-    }
-
-    /** 从 extra 中提取歌名，兼容多个候选字段并去掉"播放"等口语前缀 */
-    @Nullable
-    private String extractQuery(@Nullable Bundle extras) {
-        if (extras == null) return null;
-        String[] candidates = {
-                "keyword", "query", "songname", "songName", "song", "name",
-                "value", "content", "key", "search", "title", "word", "searchKey"
-        };
-        for (String key : candidates) {
-            if (extras.containsKey(key)) {
-                Object v = extras.get(key);
-                if (v != null) {
-                    String s = v.toString().trim();
-                    if (!s.isEmpty()) return stripPlayPrefix(s);
-                }
-            }
-        }
-        for (String key : extras.keySet()) {
-            if (isSystemExtra(key)) continue;
-            Object v = extras.get(key);
-            if (v instanceof String) {
-                String s = ((String) v).trim();
-                if (!s.isEmpty() && !isSystemValue(s)) {
-                    return stripPlayPrefix(s);
-                }
-            }
-        }
-        return null;
-    }
-
-    private boolean isSystemExtra(String key) {
-        return "android.intent.extra.TEXT".equals(key) || key.startsWith("android.");
-    }
-
-    private boolean isSystemValue(String s) {
-        return s.startsWith("cn.kuwo") || s.startsWith("com.kuwo") || s.startsWith("http");
-    }
-
-    /** 从 extra 中提取歌手名 */
-    @Nullable
-    private String extractSinger(@Nullable Bundle extras) {
-        if (extras == null) return null;
-        String[] candidates = {
-                "singer", "singerName", "singername", "singer_name", "singers",
-                "artist", "artistName", "artist_name", "artists",
-                "albumArtist", "album_artist"
-        };
-        for (String key : candidates) {
-            if (extras.containsKey(key)) {
-                Object v = extras.get(key);
-                if (v != null) {
-                    String s = v.toString().trim();
-                    if (!s.isEmpty()) return s;
-                }
-            }
-        }
-        return null;
     }
 
     /** 去掉"播放/来一首/放一首"等口语前缀，只保留歌名 */
@@ -394,7 +278,7 @@ public class KuwoVoiceReceiver extends BroadcastReceiver {
         }
     }
 
-    /** 主线程弹出 Toast */
+    /** 主线程弹出 Toast（设置里可关） */
     private void showToast(@NonNull final Context context, @NonNull final String msg) {
         if (!top.juluo.ddmusic.util.UiSettings.isVoiceToast(context)) return;
         try {

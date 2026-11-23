@@ -377,13 +377,6 @@ public class MusicService extends Service {
         }
     }
 
-    public void cycleRepeatMode() {
-        repeatMode = (repeatMode + 1) % 3;
-        savePlayModes();
-        notifyQueueChanged();
-        updateMediaSessionState();
-    }
-
     public void setRepeatMode(int mode) {
         repeatMode = clampRepeat(mode);
         savePlayModes();
@@ -408,10 +401,6 @@ public class MusicService extends Service {
 
     public List<Song> getPlayingQueue() {
         return new ArrayList<>(playingQueue);
-    }
-
-    public int getPosition() {
-        return position;
     }
 
     public Song getCurrentSong() {

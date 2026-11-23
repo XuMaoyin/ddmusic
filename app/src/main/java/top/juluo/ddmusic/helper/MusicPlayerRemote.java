@@ -21,25 +21,6 @@ public class MusicPlayerRemote {
 
     private static final Object lock = new Object();
 
-    /** 启动并绑定播放服务（语音冷启动用：先拉起服务再控制） */
-    public static void startAndBindService(final Context context, final Runnable onConnected) {
-        Intent intent = new Intent(context, MusicService.class);
-        context.startService(intent);
-        context.bindService(intent, new ServiceConnection() {
-            @Override
-            public void onServiceConnected(ComponentName name, IBinder binder) {
-                MusicService.LocalBinder lb = (MusicService.LocalBinder) binder;
-                musicService = lb.getService();
-                if (onConnected != null) onConnected.run();
-                // 保留连接不解除，避免重复绑定
-            }
-
-            @Override
-            public void onServiceDisconnected(ComponentName name) {
-            }
-        }, Context.BIND_AUTO_CREATE);
-    }
-
     /** 打开队列并从指定位置播放 */
     public static void openQueue(List<Song> queue, int startPosition, boolean startPlaying) {
         if (musicService == null || queue == null || queue.isEmpty()) return;
@@ -70,10 +51,6 @@ public class MusicPlayerRemote {
         if (musicService != null) musicService.seekTo(ms);
     }
 
-    public static void cycleRepeatMode() {
-        if (musicService != null) musicService.cycleRepeatMode();
-    }
-
     public static void setShuffleMode(int mode) {
         if (musicService != null) musicService.setShuffleMode(mode);
     }
@@ -90,11 +67,6 @@ public class MusicPlayerRemote {
     public static List<Song> getPlayingQueue() {
         if (musicService == null) return Collections.emptyList();
         return musicService.getPlayingQueue();
-    }
-
-    public static int getPosition() {
-        if (musicService == null) return -1;
-        return musicService.getPosition();
     }
 
     public static int getSongProgressMillis() {
