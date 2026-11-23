@@ -99,6 +99,7 @@ public class SongAdapter extends RecyclerView.Adapter<SongAdapter.VH> {
         holder.title.setText(song.title);
         holder.subtitle.setText(song.artistName + " · " + song.albumName);
         holder.duration.setText(MusicUtil.formatDuration(song.duration));
+        holder.playCount.setText(top.juluo.ddmusic.util.PlayCountManager.getCount(context, song.id) + " 次");
         Uri art = Uri.parse("content://media/external/audio/albumart/" + song.albumId);
         Glide.with(context).load(art).placeholder(R.color.primaryDark).into(holder.cover);
 
@@ -130,6 +131,7 @@ public class SongAdapter extends RecyclerView.Adapter<SongAdapter.VH> {
         TextView title;
         TextView subtitle;
         TextView duration;
+        TextView playCount;
         PlayingIndicatorView indicator;
         TextView index;
         /** 行原本的点击涟漪背景，切回普通行时恢复 */
@@ -141,6 +143,7 @@ public class SongAdapter extends RecyclerView.Adapter<SongAdapter.VH> {
             title = itemView.findViewById(R.id.title);
             subtitle = itemView.findViewById(R.id.subtitle);
             duration = itemView.findViewById(R.id.duration);
+            playCount = itemView.findViewById(R.id.play_count);
             indicator = itemView.findViewById(R.id.playing_indicator);
             index = itemView.findViewById(R.id.track_index);
             normalBackground = itemView.getBackground();

@@ -269,7 +269,6 @@ public class MusicService extends Service {
             loadedIndex = position;
             applyPendingSeek(index);
             mediaPlayer.start();
-            top.juluo.ddmusic.util.PlayCountManager.increment(this, song.id);
             notifySongChanged();
             updateMediaSessionState();
             showNotification();
@@ -507,6 +506,12 @@ public class MusicService extends Service {
         mediaPlayer.setWakeMode(getApplicationContext(), PowerManager.PARTIAL_WAKE_LOCK);
         mediaPlayer.setAudioStreamType(AudioManager.STREAM_MUSIC);
         mediaPlayer.setOnCompletionListener(mp -> {
+            // 播放次数只统计“完整播完”：自然结束或单曲循环整曲结束后 +1；
+            // 手动切歌/中途停止/文件出错不计。
+            Song finished = getCurrentSong();
+            if (finished != null) {
+                top.juluo.ddmusic.util.PlayCountManager.increment(this, finished.id);
+            }
             if (repeatMode == REPEAT_MODE_THIS) {
                 mediaPlayer.seekTo(0);
                 mediaPlayer.start();
