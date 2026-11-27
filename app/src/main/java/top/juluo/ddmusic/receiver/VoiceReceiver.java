@@ -61,6 +61,8 @@ public class VoiceReceiver extends BroadcastReceiver {
     /** 小迪搜索广播里的歌名/歌手字段（注意是 BYD 自己的 EXTRA_ 命名） */
     public static final String EXTRA_BYD_KEYWORDS = "EXTRA_KEYWORDS_SEARCH";
     public static final String EXTRA_BYD_ARTIST = "EXTRA_ARTIST_SEARCH";
+    /** 分类/流派槽：高频分类词（情歌、民谣…）会被小迪 NLU 解析到这里而不是歌名槽 */
+    public static final String EXTRA_BYD_TAGS = "EXTRA_PROGRAM_TAGS";
 
     @Override
     public void onReceive(Context context, Intent intent) {
@@ -84,12 +86,9 @@ public class VoiceReceiver extends BroadcastReceiver {
         if (ACTION_BYD_SEARCH.equals(action) || ACTION_BYD_SEARCH_PLUS.equals(action)) {
             String keyword = extras == null ? null : extras.getString(EXTRA_BYD_KEYWORDS);
             String artist = extras == null ? null : extras.getString(EXTRA_BYD_ARTIST);
-            Log.d(TAG, "BYD 点播: keyword=" + keyword + " artist=" + artist);
-            if (keyword != null && !keyword.trim().isEmpty()) {
-                playLocalByQuery(context, artist, stripPlayPrefix(keyword));
-            } else {
-                openMainActivity(context);
-            }
+            String tags = extras == null ? null : extras.getString(EXTRA_BYD_TAGS);
+            Log.d(TAG, "BYD 点播: keyword=" + keyword + " artist=" + artist + " tags=" + tags);
+            resolveAndPlay(context, keyword, artist, tags);
             return;
         }
 
@@ -97,10 +96,8 @@ public class VoiceReceiver extends BroadcastReceiver {
             Log.d(TAG, "BYD 随机播放");
             List<Song> all = SongLoader.getAllSongs(context);
             if (!all.isEmpty()) {
-                MusicPlayerRemote.openQueue(all, 0, true);
-                if (MusicPlayerRemote.musicService != null) {
-                    MusicPlayerRemote.musicService.setShuffleMode(MusicService.SHUFFLE_MODE_SHUFFLE);
-                }
+                int start = all.size() == 1 ? 0 : new java.util.Random().nextInt(all.size());
+                playSongs(context, all, start, true);
             } else {
                 openMainActivity(context);
             }
@@ -128,6 +125,102 @@ public class VoiceReceiver extends BroadcastReceiver {
                 }
             }
         }
+    }
+
+    /**
+     * 小迪槽位不可靠（实测）："播放周杰伦的歌"只给 artist；"播放情歌"把歌名解析进 PROGRAM_TAGS；
+     * "播放爱"会粘连成 keyword=放爱。按组合逐级兜底重解读：
+     * 1) 有主词(歌名或分类词)+歌手：精确 -> 歌手LIKE+词LIKE -> 全库模糊词 -> 剥离粘连首字重试
+     * 2) 主词全空但有歌手：该歌手全部歌曲随机播（"播放周杰伦的歌"）
+     * 3) 什么都没给：等价打开 App 播放
+     */
+    private void resolveAndPlay(@NonNull Context context, @Nullable String keyword,
+                                @Nullable String artist, @Nullable String tags) {
+        String art = notBlank(artist) ? artist.trim() : null;
+        String word = notBlank(keyword) ? stripPlayPrefix(keyword)
+                : (notBlank(tags) ? stripPlayPrefix(tags) : null);
+
+        if (word == null && art == null) {
+            openMainActivity(context);
+            return;
+        }
+
+        // 有主词：走"歌手+歌名"精确匹配（命中即整库定位播放）
+        if (word != null) {
+            if (tryPlayByTitle(context, art, word)) return;
+            // 粘连兜底："放爱"这类动词粘进词首，剥掉首字再试
+            if (word.length() > 1 && isStickyLead(word)) {
+                if (tryPlayByTitle(context, art, word.substring(1))) return;
+            }
+            if (art != null) {
+                // 歌手存在而歌名怎么都对不上：退化为按歌手随机播（如 歌手=梁静茹 词=情歌 但库里没有该歌手的《情歌》）
+                List<Song> byArtist = SongLoader.getSongsByArtistLike(context, art);
+                if (!byArtist.isEmpty()) {
+                    showToast(context, "未找到《" + word + "》，按歌手随机播放 " + byArtist.size() + " 首");
+                    playFromPool(context, byArtist);
+                    return;
+                }
+            }
+            showToast(context, "本地未找到: " + word);
+            Log.w(TAG, "本地曲库没有匹配: " + word);
+            return;
+        }
+
+        // 只有歌手（"播放周杰伦的歌"）：该歌手歌曲随机播
+        if (art != null) {
+            List<Song> byArtist = SongLoader.getSongsByArtistLike(context, art);
+            if (!byArtist.isEmpty()) {
+                showToast(context, "按歌手播放 " + byArtist.size() + " 首: " + art);
+                playFromPool(context, byArtist);
+                return;
+            }
+            showToast(context, "本地未找到歌手: " + art);
+        }
+    }
+
+    /** 精确/模糊标题匹配：命中则整库为队列定位播放；未命中返回 false 继续兜底 */
+    private boolean tryPlayByTitle(@NonNull Context context, @Nullable String art, @NonNull String word) {
+        List<Song> hits;
+        if (art != null) {
+            hits = SongLoader.getSongsByArtistAndTitle(context, art, word);
+            if (hits.isEmpty()) {
+                hits = SongLoader.getSongsByArtistTitleLike(context, art, word);
+            }
+        } else {
+            hits = SongLoader.getSongs(context, word);
+        }
+        if (hits.isEmpty()) return false;
+        // 整库为队列、命中歌定位（保留原验收行为：语音切歌可切遍整库）
+        final List<Song> all = SongLoader.getAllSongs(context);
+        int pos = 0;
+        if (!all.isEmpty()) {
+            long targetId = hits.get(0).id;
+            for (int i = 0; i < all.size(); i++) {
+                if (all.get(i).id == targetId) { pos = i; break; }
+            }
+            playSongs(context, all, pos);
+        } else {
+            playSongs(context, hits, 0);
+        }
+        Log.d(TAG, "命中 " + hits.size() + " 首: " + word);
+        showToast(context, "命中本地 " + hits.size() + " 首: " + word);
+        return true;
+    }
+
+    /** 歌手/分类池播放：队列=命中集合，随机起点 */
+    private void playFromPool(@NonNull Context context, @NonNull List<Song> pool) {
+        int start = pool.size() == 1 ? 0 : new java.util.Random().nextInt(pool.size());
+        playSongs(context, pool, start);
+    }
+
+    /** 动词粘连判定："放爱/播爱/听爱/来爱"这类首字被切进关键词的情况 */
+    private boolean isStickyLead(@NonNull String word) {
+        char c = word.charAt(0);
+        return c == '放' || c == '播' || c == '听' || c == '来';
+    }
+
+    private static boolean notBlank(@Nullable String s) {
+        return s != null && !s.trim().isEmpty();
     }
 
     /** 系统媒体键码 -> 播放命令 */
@@ -199,58 +292,32 @@ public class VoiceReceiver extends BroadcastReceiver {
     }
 
     /**
-     * 本地搜索并播放。
-     * 优先"歌手 + 歌名"精确匹配；无歌手时按歌名/歌手模糊搜索。
-     * 命中后用整个曲库作为播放队列并定位播放，切歌可切到整库其它歌曲。
-     */
-    private void playLocalByQuery(@NonNull Context context, @Nullable String singer, @NonNull String query) {
-        final List<Song> hits;
-        if (singer != null && !singer.isEmpty()) {
-            Log.d(TAG, "按歌手+歌名搜索: 歌手=" + singer + " 歌名=" + query);
-            hits = SongLoader.getSongsByArtistAndTitle(context, singer, query);
-            Log.d(TAG, "歌手+歌名命中 " + hits.size() + " 首");
-        } else {
-            Log.d(TAG, "本地搜索歌曲: " + query);
-            hits = SongLoader.getSongs(context, query);
-            Log.d(TAG, "本地命中 " + hits.size() + " 首");
-        }
-        if (hits.isEmpty()) {
-            showToast(context, "本地未找到: " + query);
-            Log.w(TAG, "本地曲库没有匹配: " + query);
-            return;
-        }
-        final List<Song> all = SongLoader.getAllSongs(context);
-        if (all.isEmpty()) {
-            showToast(context, "命中本地 " + hits.size() + " 首: " + query);
-            playSongs(context, hits, 0);
-            return;
-        }
-        int pos = 0;
-        long targetId = hits.get(0).id;
-        for (int i = 0; i < all.size(); i++) {
-            if (all.get(i).id == targetId) {
-                pos = i;
-                break;
-            }
-        }
-        showToast(context, "命中本地 " + hits.size() + " 首: " + query);
-        playSongs(context, all, pos);
-    }
-
-    /**
      * 播放歌曲列表（从指定 position 开始）。MusicService 是异步绑定的，冷启动/语音唤起时
      * 必须先确保服务就绪再 openQueue。
      */
     private void playSongs(@NonNull final Context context, @NonNull final List<Song> songs, final int position) {
+        playSongs(context, songs, position, false);
+    }
+
+    /**
+     * 播放歌曲列表（从指定位置开始，可选开启随机模式）。
+     * 冷启动注意：Android 10 禁止后台 receiver startService，
+     * 必须用 startForegroundService 通道唤醒 MusicService（服务侧 5 秒内会 startForeground）。
+     */
+    private void playSongs(@NonNull final Context context, @NonNull final List<Song> songs,
+                           final int position, final boolean enableShuffle) {
         try {
             if (MusicPlayerRemote.musicService != null) {
                 MusicPlayerRemote.openQueue(songs, position, true);
+                if (enableShuffle) {
+                    MusicPlayerRemote.musicService.setShuffleMode(MusicService.SHUFFLE_MODE_SHUFFLE);
+                }
                 return;
             }
             final Context appCtx = context.getApplicationContext();
-            appCtx.startService(new Intent(appCtx, MusicService.class));
-            appCtx.bindService(
-                    new Intent(appCtx, MusicService.class),
+            final Intent si = new Intent(appCtx, MusicService.class);
+            androidx.core.content.ContextCompat.startForegroundService(appCtx, si);
+            appCtx.bindService(si,
                     new android.content.ServiceConnection() {
                         @Override
                         public void onServiceConnected(ComponentName name, IBinder service) {
@@ -258,6 +325,10 @@ public class VoiceReceiver extends BroadcastReceiver {
                                     ((MusicService.LocalBinder) service).getService();
                             try {
                                 MusicPlayerRemote.openQueue(songs, position, true);
+                                if (enableShuffle) {
+                                    MusicPlayerRemote.musicService.setShuffleMode(
+                                            MusicService.SHUFFLE_MODE_SHUFFLE);
+                                }
                             } catch (Exception e) {
                                 Log.w(TAG, "openQueue failed", e);
                             }

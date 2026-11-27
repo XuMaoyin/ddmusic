@@ -8,6 +8,7 @@ import android.app.Service;
 import android.content.BroadcastReceiver;
 import android.content.ContentUris;
 import android.content.Context;
+import android.util.Log;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
@@ -49,6 +50,8 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * - 队列/进度持久化（重启/冷启动后从上次位置续播）
  */
 public class MusicService extends Service {
+
+    private static final String TAG = "MusicService";
 
     public static final int REPEAT_MODE_NONE = 0;
     public static final int REPEAT_MODE_ALL = 1;
@@ -176,6 +179,11 @@ public class MusicService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        // 协议保活：语音通道经 startForegroundService 唤醒时，5 秒内必须 startForeground，
+        // 否则系统崩掉进程（"did not then call Service.startForeground"）。
+        // 先挂一个与正式通知同 id 的占位通知；若用户关了"播放通知"开关，
+        // 随后的 showNotification() 会 stopForeground 撤下它（闪现一下，可接受）。
+        transientForeground();
         if (intent != null) {
             String action = intent.getAction();
             if (ACTION_TOGGLE.equals(action)) playOrPause();
@@ -596,6 +604,25 @@ public class MusicService extends Service {
     }
 
     // ---------------- 通知 ----------------
+
+    private volatile boolean fgStarted = false;
+
+    /** 冷启动协议占位：立即进入前台（占位通知），后续由 showNotification 替换或撤下 */
+    private void transientForeground() {
+        if (fgStarted) return;
+        try {
+            Notification placeholder = new NotificationCompat.Builder(this, CHANNEL_ID)
+                    .setSmallIcon(R.drawable.ic_play_arrow_white_24dp)
+                    .setContentTitle(getString(R.string.app_name))
+                    .setContentText("正在准备播放…")
+                    .setOngoing(true)
+                    .build();
+            startForeground(NOTIFICATION_ID, placeholder);
+            fgStarted = true;
+        } catch (Exception e) {
+            Log.w(TAG, "transientForeground failed", e);
+        }
+    }
 
     private void createNotificationChannel() {
         NotificationChannel channel = new NotificationChannel(CHANNEL_ID, "播放控制",

@@ -128,7 +128,7 @@ public class SongLoader {
         return new ArrayList<>(songs);
     }
 
-    /** 歌名 OR 歌手 模糊搜索 */
+    /** 歌名 OR 歌手 模糊搜索。结果分层：歌名全等 > 歌名前缀 > 歌名包含 > 仅歌手命中 */
     public static List<Song> getSongs(Context context, String query) {
         if (query == null || query.trim().isEmpty()) {
             return getAllSongs(context);
@@ -136,7 +136,31 @@ public class SongLoader {
         String q = "%" + query.trim() + "%";
         String selection = MediaStore.Audio.Media.TITLE + " LIKE ? OR " + MediaStore.Audio.Media.ARTIST + " LIKE ?";
         String[] args = {q, q};
-        return query(context, selection, args, MediaStore.Audio.Media.TITLE + " COLLATE NOCASE ASC");
+        List<Song> out = query(context, selection, args, MediaStore.Audio.Media.TITLE + " COLLATE NOCASE ASC");
+        return prioritize(out, query.trim());
+    }
+
+    /**
+     * 搜索排序优先化（query 已按标题 collate 排过，这里用稳定排序按优先级分组）：
+     * 0 歌名完全一致（如搜"情歌"命中《情歌》）
+     * 1 歌名以词开头
+     * 2 歌名包含词
+     * 3 仅歌手名命中
+     */
+    private static List<Song> prioritize(List<Song> songs, final String keyword) {
+        if (songs.isEmpty()) return songs;
+        final String k = keyword.toLowerCase(java.util.Locale.ROOT);
+        List<Song> out = new ArrayList<>(songs);
+        Collections.sort(out, (a, b) -> rank(a, k) - rank(b, k));
+        return out;
+    }
+
+    private static int rank(Song song, String k) {
+        String title = song.title == null ? "" : song.title.toLowerCase(java.util.Locale.ROOT);
+        if (title.equals(k)) return 0;
+        if (title.startsWith(k)) return 1;
+        if (title.contains(k)) return 2;
+        return 3;
     }
 
     /** 歌手 AND 歌名 精确匹配（都非空时）；任一项为空则退回对应模糊搜索 */
@@ -155,6 +179,25 @@ public class SongLoader {
                     MediaStore.Audio.Media.TITLE + " COLLATE NOCASE ASC");
         }
         return getAllSongs(context);
+    }
+
+    /** 歌手模糊匹配的全部歌曲（"播放周杰伦的歌"这类只给了歌手/分类词的指令用） */
+    public static List<Song> getSongsByArtistLike(Context context, String artist) {
+        if (artist == null || artist.trim().isEmpty()) return new ArrayList<>();
+        String q = "%" + artist.trim() + "%";
+        return query(context, MediaStore.Audio.Media.ARTIST + " LIKE ?", new String[]{q},
+                MediaStore.Audio.Media.TITLE + " COLLATE NOCASE ASC");
+    }
+
+    /** 歌手模糊 AND 标题模糊（分类词/歌名歧义时兜底，如 歌手=梁静茹 词=情歌） */
+    public static List<Song> getSongsByArtistTitleLike(Context context, String artist, String title) {
+        if (artist == null || artist.trim().isEmpty() || title == null || title.trim().isEmpty()) {
+            return new ArrayList<>();
+        }
+        String selection = MediaStore.Audio.Media.ARTIST + " LIKE ? AND "
+                + MediaStore.Audio.Media.TITLE + " LIKE ?";
+        String[] args = {"%" + artist.trim() + "%", "%" + title.trim() + "%"};
+        return query(context, selection, args, MediaStore.Audio.Media.TITLE + " COLLATE NOCASE ASC");
     }
 
     /** 按文件路径取歌（队列恢复用） */

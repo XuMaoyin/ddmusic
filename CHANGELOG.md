@@ -9,6 +9,31 @@
 
 ---
 
+# 2026-11-27
+
+## 1.0.21：语音槽位重解读，修复分类词/歌手点播/动词粘连
+
+**问题**（车机实录日志）：小迪 NLU 槽位不可靠——
+- 「播放周杰伦的歌」只发 `ARTIST=周杰伦`（KEYWORDS 空）→ 之前走"打开 App"，不点播
+- 「播放情歌」「播放梁静茹的情歌」把歌名解析进 `PROGRAM_TAGS=情歌`（分类词抢槽）→ KEYWORDS 空，无响应
+- 「播放爱」被粘连成 `KEYWORDS=放爱` → 本地搜 0 命中；而「播放小虎队的爱」正常（有歌手时切分正确）
+
+**改动**：VoiceReceiver 新增 `resolveAndPlay` 槽位重解读链：
+1. 主词=KEYWORDS 优先，空则用 PROGRAM_TAGS 当标题词
+2. 主词+歌手：歌手=且标题= 精确 → 两侧 LIKE 模糊 → 粘连首字（放/播/听/来）剥离重试
+3. 主词怎么都对不上但有歌手：退化为按歌手全曲随机播（Toast 提示"未找到《X》，按歌手随机播放"）
+4. 只有歌手：该歌手歌曲随机播（"播放周杰伦的歌"）
+5. 全空：保持原"打开 App 播放"行为
+- SongLoader 新增 `getSongsByArtistLike`、`getSongsByArtistTitleLike`
+- 删除旧的 `playLocalByQuery`（被 resolveAndPlay/tryPlayByTitle 取代）
+- 搜索框结果分层优先：歌名完全一致 > 歌名前缀 > 歌名包含 > 仅歌手命中（修"搜情歌，《情歌》反而排在后面"）；语音点播同一套排序，命中首选更准
+- **冷启动修复**（顺带发现的存量 bug）：进程被杀后广播唤醒 receiver，Android 10 禁止其 `startService`（IllegalStateException），语音点播会静默失败。`playSongs` 改用 `ContextCompat.startForegroundService` 通道，任何语音指令都能拉起服务；「随机播放」同样改走该路径并支持随机起点
+- **连带修复**：关闭「播放通知」时，startForegroundService 唤醒的服务 5 秒内无人 startForeground → 系统崩溃进程。改为 onStartCommand 先挂占位前台通知保协议，showNotification 按开关替换为播放通知或 stopForeground 撤下（关通知时通知会闪现一下）
+
+**验证**：车机实测（adb 模拟小迪实录参数组合）——冷启动「晴天」命中播放；歌手+歌名精确；
+仅歌手「周杰伦的歌」随机命中《我是如此相信》并播放；TAGS=情歌 命中 8 首；梁静茹+情歌 命中 1 首；
+粘连「放爱」剥字后命中 98 首、《爱》排首位播放（小虎队）；无崩溃、进程稳定。待真实语音复测。
+
 # 2026-11-23
 
 ## 1.0.20：播放次数只统计完整播放 + 列表显示次数
